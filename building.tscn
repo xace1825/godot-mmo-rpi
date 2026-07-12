@@ -1,0 +1,17 @@
+[gd_scene format=3 uid="uid://bld0000000000000000000000000001"]
+
+[node name="Building" type="ColorRect"]
+offset_left = -12.0
+offset_top = -12.0
+offset_right = 12.0
+offset_bottom = 12.0
+color = Color(0.55, 0.35, 0.2, 1)
+
+[node name="Label" type="Label" parent="."]
+offset_left = -10.0
+offset_top = -10.0
+offset_right = 10.0
+offset_bottom = 10.0
+text = "H"
+horizontal_alignment = 1
+vertical_alignment = 1
