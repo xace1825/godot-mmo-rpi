@@ -2,17 +2,57 @@
 chcp 65001 >nul
 setlocal enabledelayedexpansion
 
-rem === НАСТРОЙКА ===
-rem Укажи путь к своему godot.exe. Примеры:
-rem set GODOT_PATH=C:\Program Files\Godot 4\Godot_v4.4.1-stable_win64.exe
-rem set GODOT_PATH=D:\Games\Godot\Godot.exe
-rem Если Godot добавлен в PATH, можно просто: set GODOT_PATH=godot
-set GODOT_PATH=godot
-
 set PROJECT_DIR=%USERPROFILE%\gamedev\fantasy-settlement-mmo
 set REPO_URL=https://github.com/xace1825/godot-mmo-rpi.git
 set SERVER_IP=192.168.0.102
 set SERVER_PORT=7777
+
+rem === Автопоиск Godot ===
+set GODOT_PATH=
+
+rem Сначала ищем в папке, где лежит этот bat-файл
+set SCRIPT_DIR=%~dp0
+for %%f in ("%SCRIPT_DIR%\Godot*.exe") do (
+    if "!GODOT_PATH!"=="" (
+        set GODOT_PATH=%%~ff
+    )
+)
+
+rem Если не нашли рядом, ищем в Program Files
+if "!GODOT_PATH!"=="" (
+    for /r "C:\Program Files" %%f in (Godot*.exe) do (
+        if "!GODOT_PATH!"=="" (
+            set GODOT_PATH=%%~ff
+        )
+    )
+)
+
+rem Ищем в Program Files (x86)
+if "!GODOT_PATH!"=="" (
+    for /r "C:\Program Files (x86)" %%f in (Godot*.exe) do (
+        if "!GODOT_PATH!"=="" (
+            set GODOT_PATH=%%~ff
+        )
+    )
+)
+
+rem Пробуем PATH
+if "!GODOT_PATH!"=="" (
+    where godot >nul 2>nul
+    if !errorlevel! == 0 (
+        set GODOT_PATH=godot
+    )
+)
+
+if "!GODOT_PATH!"=="" (
+    echo Godot не найден.
+    echo Положи этот bat-файл в папку с Godot_v4.4.1-stable_win64.exe
+    echo или укажи путь вручную в файле run_client.bat
+    pause
+    exit /b 1
+)
+
+echo Найден Godot: !GODOT_PATH!
 
 rem === Проверка Git ===
 where git >nul 2>nul
@@ -45,6 +85,6 @@ if not exist "%PROJECT_DIR%" (
 
 rem === Запуск клиента ===
 echo Запуск игры. Подключение к серверу %SERVER_IP%:%SERVER_PORT%
-"%GODOT_PATH%" --path "%PROJECT_DIR%" --scene main.tscn --server-ip %SERVER_IP% --server-port %SERVER_PORT%
+"!GODOT_PATH!" --path "%PROJECT_DIR%" --scene main.tscn --server-ip %SERVER_IP% --server-port %SERVER_PORT%
 
 pause
