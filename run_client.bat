@@ -45,6 +45,6 @@ if not exist "%PROJECT_DIR%" (
 
 rem === Запуск клиента ===
 echo Запуск игры. Подключение к серверу %SERVER_IP%:%SERVER_PORT%
-"%GODOT_PATH%" --path "%PROJECT_DIR%" --scene main.tscn -- --server-ip %SERVER_IP% --server-port %SERVER_PORT%
+"%GODOT_PATH%" --path "%PROJECT_DIR%" --scene main.tscn --server-ip %SERVER_IP% --server-port %SERVER_PORT%
 
 pause
