@@ -10,49 +10,57 @@ set SERVER_PORT=7777
 rem === Автопоиск Godot ===
 set GODOT_PATH=
 
-rem Сначала ищем в папке, где лежит этот bat-файл
-set SCRIPT_DIR=%~dp0
-for %%f in ("%SCRIPT_DIR%\Godot*.exe") do (
-    if "!GODOT_PATH!"=="" (
-        set GODOT_PATH=%%~ff
+echo [DEBUG] Bat file folder: %~dp0
+
+for %%f in ("%~dp0Godot*.exe") do (
+    echo [DEBUG] Found file: %%~nxf
+    if not defined GODOT_PATH (
+        set "GODOT_PATH=%%~ff"
     )
 )
 
-rem Если не нашли рядом, ищем в Program Files
-if "!GODOT_PATH!"=="" (
-    for /r "C:\Program Files" %%f in (Godot*.exe) do (
-        if "!GODOT_PATH!"=="" (
-            set GODOT_PATH=%%~ff
-        )
+if defined GODOT_PATH (
+    echo [DEBUG] Selected Godot: !GODOT_PATH!
+    goto :found
+)
+
+echo [DEBUG] Not found next to bat. Searching Program Files...
+for /r "C:\Program Files" %%f in (Godot*.exe) do (
+    if not defined GODOT_PATH (
+        set "GODOT_PATH=%%~ff"
     )
 )
 
-rem Ищем в Program Files (x86)
-if "!GODOT_PATH!"=="" (
-    for /r "C:\Program Files (x86)" %%f in (Godot*.exe) do (
-        if "!GODOT_PATH!"=="" (
-            set GODOT_PATH=%%~ff
-        )
+if defined GODOT_PATH goto :found
+
+echo [DEBUG] Searching Program Files (x86)...
+for /r "C:\Program Files (x86)" %%f in (Godot*.exe) do (
+    if not defined GODOT_PATH (
+        set "GODOT_PATH=%%~ff"
     )
 )
 
-rem Пробуем PATH
-if "!GODOT_PATH!"=="" (
-    where godot >nul 2>nul
-    if !errorlevel! == 0 (
-        set GODOT_PATH=godot
-    )
+if defined GODOT_PATH goto :found
+
+echo [DEBUG] Checking PATH...
+where godot >nul 2>nul
+if %errorlevel% == 0 (
+    set GODOT_PATH=godot
+    goto :found
 )
 
-if "!GODOT_PATH!"=="" (
+:found
+if not defined GODOT_PATH (
+    echo.
     echo Godot не найден.
     echo Положи этот bat-файл в папку с Godot_v4.4.1-stable_win64.exe
-    echo или укажи путь вручную в файле run_client.bat
+    echo или открой run_client.bat блокнотом и впиши путь вручную.
+    echo.
     pause
     exit /b 1
 )
 
-echo Найден Godot: !GODOT_PATH!
+echo Godot найден: !GODOT_PATH!
 
 rem === Проверка Git ===
 where git >nul 2>nul
