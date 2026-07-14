@@ -5,6 +5,8 @@ const SAVE_PATH: String = "user://world_save.json"
 var buildings: Dictionary = {}
 var blueprints: Dictionary = {}
 var stockpiles: Dictionary = {}
+var rooms: Array = []
+var room_station_status: Dictionary = {}
 var world_seed: int = 12345
 var world: Array = []
 var resources: Dictionary = {
@@ -29,6 +31,93 @@ func get_tile_type(pos: Vector2i) -> int:
 func can_build_at(pos: Vector2i) -> bool:
 	var type := get_tile_type(pos)
 	return PlanetGenerator.is_buildable(type)
+
+func get_room_at(pos: Vector2i) -> int:
+	var key: String = _pos_key(pos)
+	for i in range(rooms.size()):
+		if key in rooms[i]["tiles"]:
+			return i
+	return -1
+
+func is_indoor_station(pos: Vector2i) -> bool:
+	var key: String = _pos_key(pos)
+	return room_station_status.get(key, false)
+
+func recalculate_rooms():
+	rooms.clear()
+	room_station_status.clear()
+	# Gather floor, door and station tiles as room-passable; walls block
+	var floor_tiles: Dictionary = {}
+	var door_tiles: Dictionary = {}
+	var walls: Dictionary = {}
+	for key: String in buildings:
+		var type_id: int = buildings[key]
+		if type_id == PlanetGenerator.BuildingType.WALL:
+			walls[key] = true
+		elif type_id == PlanetGenerator.BuildingType.DOOR:
+			door_tiles[key] = true
+			floor_tiles[key] = true
+		elif type_id == PlanetGenerator.BuildingType.FLOOR or PlanetGenerator.is_station(type_id):
+			floor_tiles[key] = true
+	# Stockpile zones are passable (they are just floor designations)
+	for stock_id: String in stockpiles:
+		for key: String in stockpiles[stock_id]["zone"]:
+			floor_tiles[key] = true
+	
+	var visited: Dictionary = {}
+	for start_key: String in floor_tiles:
+		if visited.has(start_key):
+			continue
+		var room: Dictionary = {
+			"tiles": [],
+			"is_enclosed": true,
+			"stations": []
+		}
+		var queue: Array = [start_key]
+		visited[start_key] = true
+		while queue.size() > 0:
+			var current_key: String = queue.pop_front()
+			room["tiles"].append(current_key)
+			var pos: Vector2i = _key_pos(current_key)
+			var current_is_door: bool = door_tiles.has(current_key)
+			for dir in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+				var neighbor: Vector2i = pos + dir
+				var nkey: String = _pos_key(neighbor)
+				# Stop at walls and world borders
+				if walls.has(nkey):
+					continue
+				if neighbor.x < 0 or neighbor.x >= PlanetGenerator.WORLD_SIZE or neighbor.y < 0 or neighbor.y >= PlanetGenerator.WORLD_SIZE:
+					room["is_enclosed"] = false
+					continue
+				# Empty outdoor space adjacent to non-door tile breaks enclosure
+				if not floor_tiles.has(nkey):
+					if not current_is_door:
+						room["is_enclosed"] = false
+					continue
+				if not visited.has(nkey):
+					visited[nkey] = true
+					queue.append(nkey)
+		rooms.append(room)
+	
+	# Mark stations
+	for key: String in buildings:
+		var type_id: int = buildings[key]
+		if not PlanetGenerator.is_station(type_id):
+			continue
+		var pos: Vector2i = _key_pos(key)
+		var room_idx: int = get_room_at(pos)
+		var indoor: bool = false
+		if room_idx >= 0:
+			indoor = rooms[room_idx]["is_enclosed"]
+			rooms[room_idx]["stations"].append(pos)
+		room_station_status[key] = indoor
+	print("Server: recalculated ", rooms.size(), " rooms, indoor stations: ", room_station_status.values().count(true), ", outdoor: ", room_station_status.values().count(false))
+	for i in range(rooms.size()):
+		print("  room ", i, " enclosed=", rooms[i]["is_enclosed"], " tiles=", rooms[i]["tiles"].size(), " stations=", rooms[i]["stations"])
+
+func _key_pos(key: String) -> Vector2i:
+	var parts: PackedStringArray = key.split(",")
+	return Vector2i(int(parts[0]), int(parts[1]))
 
 func _pos_key(pos: Vector2i) -> String:
 	return "%d,%d" % [pos.x, pos.y]
@@ -55,6 +144,12 @@ func add_blueprint(pos: Vector2i, building_type: int = -1) -> int:
 		"paid": {"wood": 0, "stone": 0, "food": 0}
 	}
 	print("Server: added blueprint ", key, " type ", type_id, " cost ", cost)
+	# Production stations need a floor tile under them to count as indoor
+	if PlanetGenerator.is_station(type_id):
+		if not buildings.has(key):
+			buildings[key] = PlanetGenerator.BuildingType.FLOOR
+			print("Server: placed floor under station at ", pos)
+	Network.broadcast_blueprint_placed(pos, type_id)
 	return type_id
 
 func add_stockpile(topleft: Vector2i, size: Vector2i) -> bool:
@@ -134,6 +229,7 @@ func complete_blueprint(pos: Vector2i) -> bool:
 	if completed_type < PlanetGenerator.BuildingType.WALL:
 		spawn_villagers_for_station(pos, completed_type)
 	print("Server: blueprint completed at ", key, " type ", completed_type, " using stockpile ", stock_id)
+	recalculate_rooms()
 	Network.broadcast_building_completed(pos, completed_type)
 	return true
 

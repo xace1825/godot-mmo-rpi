@@ -101,6 +101,11 @@ func broadcast_resource_sync():
 	if multiplayer.has_multiplayer_peer():
 		rpc("sync_resources", GameState.resources.duplicate())
 
+func broadcast_blueprint_placed(pos: Vector2i, type_id: int):
+	if multiplayer.has_multiplayer_peer():
+		rpc("place_blueprint", pos, type_id)
+		_broadcast_state()
+
 func broadcast_building_completed(pos: Vector2i, type_id: int):
 	if multiplayer.has_multiplayer_peer():
 		rpc("place_building", pos, type_id)

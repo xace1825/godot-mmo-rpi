@@ -72,12 +72,18 @@ func _process_workers():
 			continue
 		match v["state"]:
 			"idle", "working":
-				v["progress"] += WORK_UNITS_PER_TICK
+				# Apply indoor/outdoor work speed modifier
+				var wp := Vector2i(int(v["workplace"]["x"]), int(v["workplace"]["y"]))
+				var speed_mult: float = 1.0
+				if not GameState.is_indoor_station(wp):
+					speed_mult = 0.6
+				v["progress"] += WORK_UNITS_PER_TICK * speed_mult
 				v["state"] = "working"
 				if v["progress"] >= 1.0:
 					v["progress"] = 0.0
 					v["carrying"] = {"resource": res, "amount": PRODUCTION_AMOUNT}
 					v["state"] = "hauling"
+					print("Server: worker ", id, " produced ", res, " at ", wp, " (speed x", speed_mult, ")")
 			"hauling":
 				var wp := Vector2i(int(v["workplace"]["x"]), int(v["workplace"]["y"]))
 				if GameState.deposit_to_nearest_stockpile(wp, v["carrying"]["resource"], v["carrying"]["amount"]):
