@@ -35,6 +35,9 @@ func _ready():
 			elif args[i] == "--server-port" and i + 1 < args.size():
 				server_port = int(args[i + 1])
 				i += 2
+			elif args[i] == "--scene" and i + 1 < args.size():
+				# skip scene argument
+				i += 2
 			elif not args[i].begins_with("--"):
 				positional.append(args[i])
 				i += 1
