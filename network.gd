@@ -54,15 +54,15 @@ func _on_peer_connected(id: int):
 	print("Peer connected: ", id)
 	rpc_id(id, "sync_world", GameState.get_world_data())
 
-func ask_build(tile_pos: Vector2i):
+func ask_build(tile_pos: Vector2i, building_type: int = -1):
 	if multiplayer.is_server():
 		return
-	rpc_id(1, "request_build", tile_pos)
+	rpc_id(1, "request_build", tile_pos, building_type)
 
 @rpc("any_peer", "call_remote", "reliable")
-func request_build(tile_pos: Vector2i):
-	print("Server: build request at ", tile_pos)
-	var type_id := GameState.add_blueprint(tile_pos)
+func request_build(tile_pos: Vector2i, building_type: int = -1):
+	print("Server: build request at ", tile_pos, " type ", building_type)
+	var type_id := GameState.add_blueprint(tile_pos, building_type)
 	print("Server: blueprint success=", type_id)
 	if type_id >= 0:
 		var builder := GameState.spawn_builder_for_blueprint(tile_pos)

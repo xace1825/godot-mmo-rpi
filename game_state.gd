@@ -29,7 +29,7 @@ func can_build_at(pos: Vector2i) -> bool:
 	var type := get_tile_type(pos)
 	return PlanetGenerator.is_buildable(type)
 
-func add_blueprint(pos: Vector2i, station_type: int = -1) -> int:
+func add_blueprint(pos: Vector2i, building_type: int = -1) -> int:
 	ensure_world_generated()
 	var key = "%d,%d" % [pos.x, pos.y]
 	if buildings.has(key) or blueprints.has(key):
@@ -39,10 +39,10 @@ func add_blueprint(pos: Vector2i, station_type: int = -1) -> int:
 		print("Server: cannot build on this terrain")
 		return -1
 	var tile_type := get_tile_type(pos)
-	var type_id := station_type
+	var type_id := building_type
 	if type_id < 0:
 		type_id = PlanetGenerator.get_station_type(tile_type)
-	var cost := PlanetGenerator.get_station_cost(type_id)
+	var cost := PlanetGenerator.get_build_cost(type_id)
 	blueprints[key] = {
 		"type": type_id,
 		"pos": {"x": pos.x, "y": pos.y},

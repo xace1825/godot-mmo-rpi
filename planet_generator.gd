@@ -23,7 +23,10 @@ enum TileType {
 enum BuildingType {
 	SAWMILL,
 	FARM,
-	MINE
+	MINE,
+	WALL,
+	DOOR,
+	FLOOR
 }
 
 const HEIGHT_DEEP: float = -0.6
@@ -125,14 +128,20 @@ static func get_station_type(tile_type: int) -> int:
 		_:
 			return BuildingType.FARM
 
-static func get_station_cost(station_type: int) -> Dictionary:
-	match station_type:
+static func get_build_cost(building_type: int) -> Dictionary:
+	match building_type:
 		BuildingType.SAWMILL:
 			return {"wood": 10, "stone": 0, "food": 0}
-		BuildingType.MINE:
-			return {"wood": 5, "stone": 15, "food": 0}
 		BuildingType.FARM:
 			return {"wood": 5, "stone": 0, "food": 0}
+		BuildingType.MINE:
+			return {"wood": 5, "stone": 15, "food": 0}
+		BuildingType.WALL:
+			return {"wood": 0, "stone": 3, "food": 0}
+		BuildingType.DOOR:
+			return {"wood": 5, "stone": 0, "food": 0}
+		BuildingType.FLOOR:
+			return {"wood": 1, "stone": 0, "food": 0}
 		_:
 			return {"wood": 0, "stone": 0, "food": 0}
 
@@ -170,7 +179,18 @@ static func get_resource_for_building(building_type: int) -> String:
 	return get_resource_for_job(get_job_type(building_type))
 
 static func building_type_to_rect(type: int) -> Rect2:
-	return Rect2(type * 64, 0, 64, 64)
+	if type < 3:
+		return Rect2(type * 64, 0, 64, 64)
+	# Fallback sizes for wall/door/floor placeholders
+	match type:
+		BuildingType.WALL:
+			return Rect2(0, 64, 32, 32)
+		BuildingType.DOOR:
+			return Rect2(32, 64, 32, 32)
+		BuildingType.FLOOR:
+			return Rect2(64, 64, 32, 32)
+		_:
+			return Rect2(0, 0, 32, 32)
 
 static func get_chunk_coords(x: int, y: int) -> Vector2i:
 	return Vector2i(floor(float(x) / CHUNK_SIZE), floor(float(y) / CHUNK_SIZE))
