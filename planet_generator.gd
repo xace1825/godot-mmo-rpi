@@ -29,18 +29,18 @@ enum BuildingType {
 	FLOOR
 }
 
-const HEIGHT_DEEP: float = -0.6
-const HEIGHT_OCEAN: float = -0.2
-const HEIGHT_SHORE: float = 0.0
+const HEIGHT_DEEP: float = -0.85
+const HEIGHT_OCEAN: float = -0.45
+const HEIGHT_SHORE: float = -0.15
 const HEIGHT_LOW: float = 0.25
 const HEIGHT_MID: float = 0.55
 const HEIGHT_HIGH: float = 0.75
 const HEIGHT_PEAK: float = 0.9
 
 const TEMP_HOT: float = 0.5
-const TEMP_WARM: float = 0.2
-const TEMP_COLD: float = -0.2
-const TEMP_FROZEN: float = -0.5
+const TEMP_WARM: float = 0.15
+const TEMP_COLD: float = -0.25
+const TEMP_FROZEN: float = -0.55
 
 const WET_DRY: float = -0.2
 const WET_WET: float = 0.2
