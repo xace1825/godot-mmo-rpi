@@ -1,10 +1,14 @@
 [gd_scene format=3 uid="uid://bld0000000000000000000000000001"]
 
-[node name="Building" type="Polygon2D"]
-z_index = 1
-polygon = PackedVector2Array(-16, -16, 16, -16, 16, 16, -16, 16)
-color = Color(0.8, 0.3, 0.1, 1)
+[ext_resource type="Texture2D" uid="uid://1v4ao15e6bcp" path="res://building.png" id="1_bldg"]
+[ext_resource type="Texture2D" uid="uid://dpv8s4gs2c46g" path="res://roof.png" id="2_roof"]
 
-[node name="Border" type="Line2D" parent="."]
-points = PackedVector2Array(-16, -16, 16, -16, 16, 16, -16, 16, -16, -16)
-width = 2.0
+[node name="Building" type="Node2D"]
+z_index = 1
+
+[node name="Body" type="Sprite2D" parent="."]
+texture = ExtResource("1_bldg")
+
+[node name="Roof" type="Sprite2D" parent="."]
+position = Vector2(0, -20)
+texture = ExtResource("2_roof")

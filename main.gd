@@ -12,6 +12,7 @@ const DEFAULT_SERVER_PORT: int = 7777
 var building_scene = preload("res://building.tscn")
 var client_buildings: Dictionary = {}
 var is_server: bool = false
+var camera_frames: int = 0
 
 func _ready():
 	is_server = OS.has_feature("dedicated_server") or DisplayServer.get_name() == "headless"
@@ -50,13 +51,37 @@ func _ready():
 		print("Connecting to server ", server_ip, ":", server_port)
 		Network.start_client(server_ip, server_port)
 
+func _process(_delta):
+	if is_server:
+		return
+	if camera and camera_frames < 300:
+		camera.make_current()
+		camera.reset_smoothing()
+		camera.global_position = Vector2(WORLD_SIZE * TILE_SIZE / 2, WORLD_SIZE * TILE_SIZE / 2)
+		camera.offset = Vector2.ZERO
+		camera.force_update_scroll()
+		camera_frames += 1
+		if camera_frames == 1 or camera_frames % 30 == 0:
+			print("Camera frame ", camera_frames, " pos=", camera.position, " current=", camera.is_current())
+
 func setup_client():
 	for x in range(WORLD_SIZE):
 		for y in range(WORLD_SIZE):
 			tile_map.set_cell(0, Vector2i(x, y), 0, Vector2i(0, 0))
-	camera.position = Vector2(WORLD_SIZE * TILE_SIZE / 2, WORLD_SIZE * TILE_SIZE / 2)
 	Network.building_placed.connect(_on_building_placed)
 	Network.full_sync.connect(_on_full_sync)
+
+func _draw():
+	# draw grid over the tilemap for visibility
+	for x in range(WORLD_SIZE + 1):
+		var px := x * TILE_SIZE
+		draw_line(Vector2(px, 0), Vector2(px, WORLD_SIZE * TILE_SIZE), Color(0, 0, 0, 0.3), 1.0)
+	for y in range(WORLD_SIZE + 1):
+		var py := y * TILE_SIZE
+		draw_line(Vector2(0, py), Vector2(WORLD_SIZE * TILE_SIZE, py), Color(0, 0, 0, 0.3), 1.0)
+	# draw a red marker at center for orientation
+	var center := Vector2(WORLD_SIZE * TILE_SIZE / 2, WORLD_SIZE * TILE_SIZE / 2)
+	draw_circle(center, 12, Color(1, 0, 0, 0.7))
 
 func _input(event):
 	if is_server:
