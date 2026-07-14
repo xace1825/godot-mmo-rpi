@@ -16,10 +16,37 @@ const TYPE_MAP := {
 	"DoorButton": PlanetGenerator.BuildingType.DOOR
 }
 
+const TYPE_ICONS := {
+	PlanetGenerator.BuildingType.SAWMILL: "[S]",
+	PlanetGenerator.BuildingType.FARM: "[F]",
+	PlanetGenerator.BuildingType.MINE: "[M]",
+	PlanetGenerator.BuildingType.WALL: "[W]",
+	PlanetGenerator.BuildingType.FLOOR: "[Fl]",
+	PlanetGenerator.BuildingType.DOOR: "[D]"
+}
+
+const TYPE_COLORS := {
+	PlanetGenerator.BuildingType.SAWMILL: Color(0.7, 0.5, 0.3),
+	PlanetGenerator.BuildingType.FARM: Color(0.3, 0.7, 0.3),
+	PlanetGenerator.BuildingType.MINE: Color(0.55, 0.55, 0.6),
+	PlanetGenerator.BuildingType.WALL: Color(0.6, 0.6, 0.65),
+	PlanetGenerator.BuildingType.FLOOR: Color(0.7, 0.6, 0.45),
+	PlanetGenerator.BuildingType.DOOR: Color(0.6, 0.4, 0.25)
+}
+
 func _ready():
 	for child in container.get_children():
 		if child is Button:
 			child.pressed.connect(_on_button_pressed.bind(child))
+			child.text = _button_text(child)
+			child.add_theme_font_size_override("font_size", 16)
+			child.set_meta("type_id", TYPE_MAP.get(child.name, -1))
+	_highlight_default()
+
+func _button_text(button: Button) -> String:
+	var type_id: int = TYPE_MAP.get(button.name, -1)
+	var icon: String = TYPE_ICONS.get(type_id, "")
+	return "%s\n%s" % [icon, button.name.replace("Button", "")]
 
 func _on_button_pressed(button: Button):
 	var type_id = TYPE_MAP.get(button.name, -1)
@@ -31,5 +58,30 @@ func _on_button_pressed(button: Button):
 func _highlight_button(active: Button):
 	for child in container.get_children():
 		if child is Button:
-			child.modulate = Color.WHITE
-	active.modulate = Color.YELLOW
+			var tid: int = child.get_meta("type_id", -1)
+			var base: Color = TYPE_COLORS.get(tid, Color(0.2, 0.2, 0.2))
+			child.add_theme_color_override("font_color", Color.WHITE)
+			child.add_theme_stylebox_override("normal", _make_stylebox(base, 0.9))
+	active.add_theme_color_override("font_color", Color.YELLOW)
+	active.add_theme_stylebox_override("normal", _make_stylebox(Color.YELLOW, 0.3))
+
+func _highlight_default():
+	for child in container.get_children():
+		if child is Button:
+			var tid: int = child.get_meta("type_id", -1)
+			var base: Color = TYPE_COLORS.get(tid, Color(0.2, 0.2, 0.2))
+			child.add_theme_color_override("font_color", Color.WHITE)
+			child.add_theme_stylebox_override("normal", _make_stylebox(base, 0.9))
+
+func _make_stylebox(color: Color, alpha: float) -> StyleBoxFlat:
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(color.r, color.g, color.b, alpha)
+	sb.corner_radius_top_left = 4
+	sb.corner_radius_top_right = 4
+	sb.corner_radius_bottom_left = 4
+	sb.corner_radius_bottom_right = 4
+	sb.content_margin_left = 8
+	sb.content_margin_right = 8
+	sb.content_margin_top = 4
+	sb.content_margin_bottom = 4
+	return sb
