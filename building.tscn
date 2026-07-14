@@ -1,14 +1,10 @@
 [gd_scene format=3 uid="uid://bld0000000000000000000000000001"]
 
 [node name="Building" type="Polygon2D"]
-polygon = PackedVector2Array(-12, -12, 12, -12, 12, 12, -12, 12)
-color = Color(0.55, 0.35, 0.2, 1)
+z_index = 1
+polygon = PackedVector2Array(-16, -16, 16, -16, 16, 16, -16, 16)
+color = Color(0.8, 0.3, 0.1, 1)
 
-[node name="Label" type="Label" parent="."]
-offset_left = -10.0
-offset_top = -10.0
-offset_right = 10.0
-offset_bottom = 10.0
-text = "H"
-horizontal_alignment = 1
-vertical_alignment = 1
+[node name="Border" type="Line2D" parent="."]
+points = PackedVector2Array(-16, -16, 16, -16, 16, 16, -16, 16, -16, -16)
+width = 2.0
