@@ -16,6 +16,7 @@ var camera_frames: int = 0
 var camera_speed: float = 1200.0
 var zoom_speed: float = 0.1
 var world_data: Array = []
+var chunk_manager: ChunkManager = null
 
 func _ready():
 	is_server = OS.has_feature("dedicated_server") or DisplayServer.get_name() == "headless"
@@ -67,6 +68,8 @@ func _process(delta):
 		camera.offset = Vector2.ZERO
 		camera.force_update_scroll()
 		camera_frames += 1
+	if chunk_manager:
+		chunk_manager.update(camera.global_position)
 
 func _handle_camera_input(delta):
 	if not camera:
@@ -104,17 +107,6 @@ func setup_client():
 	Network.building_placed.connect(_on_building_placed)
 	Network.full_sync.connect(_on_full_sync)
 
-func render_world(world: Array):
-	print("Rendering world ", WORLD_SIZE, "x", WORLD_SIZE)
-	var count := 0
-	for x in range(WORLD_SIZE):
-		for y in range(WORLD_SIZE):
-			var type := world[x][y] as int
-			tile_map.set_cell(0, Vector2i(x, y), 0, PlanetGenerator.tile_to_atlas_coords(type))
-			count += 1
-	print("Rendered ", count, " tiles")
-	tile_map.queue_redraw()
-
 func _on_building_placed(pos: Vector2i, type_id: int):
 	if client_buildings.has(pos):
 		return
@@ -131,7 +123,8 @@ func _on_full_sync(data: Dictionary):
 	print("Client received full sync with ", data["buildings"].size(), " buildings")
 	var seed_value := data.get("seed", 12345) as int
 	world_data = PlanetGenerator.generate_world(seed_value)
-	render_world(world_data)
+	chunk_manager = ChunkManager.new(tile_map, world_data)
+	chunk_manager.update(Vector2(WORLD_SIZE * TILE_SIZE / 2, WORLD_SIZE * TILE_SIZE / 2))
 	for pos_str in data["buildings"]:
 		var parts: PackedStringArray = pos_str.split(",")
 		var pos = Vector2i(int(parts[0]), int(parts[1]))
