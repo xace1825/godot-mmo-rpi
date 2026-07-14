@@ -13,7 +13,8 @@ const TYPE_MAP := {
 	"MineButton": PlanetGenerator.BuildingType.MINE,
 	"WallButton": PlanetGenerator.BuildingType.WALL,
 	"FloorButton": PlanetGenerator.BuildingType.FLOOR,
-	"DoorButton": PlanetGenerator.BuildingType.DOOR
+	"DoorButton": PlanetGenerator.BuildingType.DOOR,
+	"StockpileButton": PlanetGenerator.BuildingType.STOCKPILE
 }
 
 const TYPE_ICONS := {
@@ -22,7 +23,8 @@ const TYPE_ICONS := {
 	PlanetGenerator.BuildingType.MINE: "[M]",
 	PlanetGenerator.BuildingType.WALL: "[W]",
 	PlanetGenerator.BuildingType.FLOOR: "[Fl]",
-	PlanetGenerator.BuildingType.DOOR: "[D]"
+	PlanetGenerator.BuildingType.DOOR: "[D]",
+	PlanetGenerator.BuildingType.STOCKPILE: "[St]"
 }
 
 const TYPE_COLORS := {
@@ -31,7 +33,8 @@ const TYPE_COLORS := {
 	PlanetGenerator.BuildingType.MINE: Color(0.55, 0.55, 0.6),
 	PlanetGenerator.BuildingType.WALL: Color(0.6, 0.6, 0.65),
 	PlanetGenerator.BuildingType.FLOOR: Color(0.7, 0.6, 0.45),
-	PlanetGenerator.BuildingType.DOOR: Color(0.6, 0.4, 0.25)
+	PlanetGenerator.BuildingType.DOOR: Color(0.6, 0.4, 0.25),
+	PlanetGenerator.BuildingType.STOCKPILE: Color(0.8, 0.7, 0.4)
 }
 
 func _ready():

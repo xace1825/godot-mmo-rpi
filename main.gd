@@ -15,6 +15,7 @@ var blueprint_scene = preload("res://building.tscn")
 var villager_scene = preload("res://villager.tscn")
 var client_buildings: Dictionary = {}
 var client_blueprints: Dictionary = {}
+var client_stockpiles: Dictionary = {}
 var client_villagers: Dictionary = {}
 var client_resources: Dictionary = {"wood": 0, "food": 0, "stone": 0}
 var is_server: bool = false
@@ -24,6 +25,11 @@ var zoom_speed: float = 0.1
 var world_data: Array = []
 var chunk_manager: ChunkManager = null
 
+# Stockpile drag selection
+var is_dragging_stockpile: bool = false
+var drag_start_tile: Vector2i = Vector2i(-1, -1)
+var drag_current_tile: Vector2i = Vector2i(-1, -1)
+
 func _ready():
 	is_server = OS.has_feature("dedicated_server") or DisplayServer.get_name() == "headless"
 
@@ -31,10 +37,8 @@ func _ready():
 		print("Starting DEDICATED SERVER mode")
 		Network.start_server()
 		GameState.load_world()
-		# Starting resources for testing
-		if GameState.resources["wood"] == 0 and GameState.resources["stone"] == 0 and GameState.resources["food"] == 0:
-			GameState.resources = {"wood": 50, "stone": 50, "food": 50}
-			print("Server: gave starting resources for testing")
+		# Starting resources are now placed into the first stockpile, not globally
+		print("Server: waiting for first stockpile for starting resources")
 	else:
 		print("Starting CLIENT mode")
 		setup_client()
@@ -43,6 +47,7 @@ func _ready():
 func setup_client():
 	Network.building_placed.connect(_on_building_placed)
 	Network.blueprint_placed.connect(_on_blueprint_placed)
+	Network.stockpile_added.connect(_on_stockpile_added)
 	Network.full_sync.connect(_on_full_sync)
 	Network.villager_sync.connect(_on_villager_sync)
 	Network.resource_sync.connect(_on_resource_sync)
@@ -119,13 +124,45 @@ func _input(event):
 			camera.zoom = camera.zoom * (1.0 + zoom_speed)
 		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 			camera.zoom = camera.zoom / (1.0 + zoom_speed)
-		elif event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+		elif event.button_index == MOUSE_BUTTON_LEFT:
 			var tile := tile_map.local_to_map(tile_map.get_local_mouse_position())
-			if tile.x >= 0 and tile.x < WORLD_SIZE and tile.y >= 0 and tile.y < WORLD_SIZE:
-				print("Client clicked tile: ", tile, " type: ", selected_build_type)
-				Network.ask_build(tile, selected_build_type)
+			if tile.x < 0 or tile.x >= WORLD_SIZE or tile.y < 0 or tile.y >= WORLD_SIZE:
+				return
+			if selected_build_type == PlanetGenerator.BuildingType.STOCKPILE:
+				if event.pressed:
+					is_dragging_stockpile = true
+					drag_start_tile = tile
+					drag_current_tile = tile
+				else:
+					if is_dragging_stockpile:
+						is_dragging_stockpile = false
+						var top_left := Vector2i(min(drag_start_tile.x, drag_current_tile.x), min(drag_start_tile.y, drag_current_tile.y))
+						var bottom_right := Vector2i(max(drag_start_tile.x, drag_current_tile.x), max(drag_start_tile.y, drag_current_tile.y))
+						var size := Vector2i(bottom_right.x - top_left.x + 1, bottom_right.y - top_left.y + 1)
+						if size.x > 0 and size.y > 0:
+							print("Client requesting stockpile at ", top_left, " size ", size)
+							Network.ask_stockpile(top_left, size)
+						drag_start_tile = Vector2i(-1, -1)
+						drag_current_tile = Vector2i(-1, -1)
+			else:
+				if event.pressed:
+					print("Client clicked tile: ", tile, " type: ", selected_build_type)
+					Network.ask_build(tile, selected_build_type)
+	elif event is InputEventMouseMotion and is_dragging_stockpile:
+		var tile := tile_map.local_to_map(tile_map.get_local_mouse_position())
+		if tile.x >= 0 and tile.x < WORLD_SIZE and tile.y >= 0 and tile.y < WORLD_SIZE:
+			drag_current_tile = tile
 	elif event is InputEventKey and event.pressed and event.keycode == KEY_SPACE:
 		camera.position = Vector2(WORLD_SIZE * TILE_SIZE / 2, WORLD_SIZE * TILE_SIZE / 2)
+
+func _draw():
+	if is_dragging_stockpile and drag_start_tile.x >= 0 and drag_current_tile.x >= 0:
+		var top_left := Vector2i(min(drag_start_tile.x, drag_current_tile.x), min(drag_start_tile.y, drag_current_tile.y))
+		var bottom_right := Vector2i(max(drag_start_tile.x, drag_current_tile.x), max(drag_start_tile.y, drag_current_tile.y))
+		var rect_pos := Vector2(top_left.x * TILE_SIZE, top_left.y * TILE_SIZE)
+		var rect_size := Vector2((bottom_right.x - top_left.x + 1) * TILE_SIZE, (bottom_right.y - top_left.y + 1) * TILE_SIZE)
+		draw_rect(Rect2(rect_pos, rect_size), Color(0.9, 0.8, 0.3, 0.4), true)
+		draw_rect(Rect2(rect_pos, rect_size), Color(0.9, 0.8, 0.3, 0.8), false, 2.0)
 
 func _on_blueprint_placed(pos: Vector2i, type_id: int):
 	if client_blueprints.has(pos) or client_buildings.has(pos):
@@ -158,7 +195,7 @@ func _on_building_placed(pos: Vector2i, type_id: int):
 	print("Client placed building at ", pos, " type ", type_id)
 
 func _on_full_sync(data: Dictionary):
-	print("Client received full sync with ", data["buildings"].size(), " buildings, ", data.get("blueprints", {}).size(), " blueprints")
+	print("Client received full sync with ", data["buildings"].size(), " buildings, ", data.get("blueprints", {}).size(), " blueprints, ", data.get("stockpiles", {}).size(), " stockpiles")
 	var seed_value := data.get("seed", 12345) as int
 	world_data = PlanetGenerator.generate_world(seed_value)
 	chunk_manager = ChunkManager.new(tile_map, world_data)
@@ -173,6 +210,8 @@ func _on_full_sync(data: Dictionary):
 		var parts: PackedStringArray = pos_str.split(",")
 		var pos = Vector2i(int(parts[0]), int(parts[1]))
 		_on_blueprint_placed(pos, data["blueprints"][pos_str]["type"])
+	for stock_id in data.get("stockpiles", {}):
+		_on_stockpile_added(stock_id, data["stockpiles"][stock_id])
 	if first_building_pos.x >= 0 and camera:
 		var target := Vector2(first_building_pos.x * TILE_SIZE + TILE_SIZE / 2, first_building_pos.y * TILE_SIZE + TILE_SIZE / 2)
 		camera.global_position = target
@@ -187,6 +226,22 @@ func _on_full_sync(data: Dictionary):
 		chunk_manager.update(Vector2(WORLD_SIZE * TILE_SIZE / 2, WORLD_SIZE * TILE_SIZE / 2))
 	_on_villager_sync(data.get("villagers", {}))
 	_on_resource_sync(data.get("resources", {"wood": 0, "food": 0, "stone": 0}))
+
+func _on_stockpile_added(id: String, data: Dictionary):
+	print("Client: stockpile added ", id)
+	# Draw a semi-transparent yellow overlay over each tile
+	for key in data.get("zone", []):
+		var parts: PackedStringArray = key.split(",")
+		var pos := Vector2i(int(parts[0]), int(parts[1]))
+		var marker := ColorRect.new()
+		marker.position = Vector2(pos.x * TILE_SIZE + 1, pos.y * TILE_SIZE + 1)
+		marker.size = Vector2(TILE_SIZE - 2, TILE_SIZE - 2)
+		marker.color = Color(0.9, 0.8, 0.3, 0.25)
+		marker.z_index = 1
+		add_child(marker)
+		if not client_stockpiles.has(id):
+			client_stockpiles[id] = []
+		client_stockpiles[id].append(marker)
 
 func _on_villager_sync(villagers: Dictionary):
 	for id in villagers:

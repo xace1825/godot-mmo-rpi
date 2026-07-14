@@ -26,7 +26,8 @@ enum BuildingType {
 	MINE,
 	WALL,
 	DOOR,
-	FLOOR
+	FLOOR,
+	STOCKPILE
 }
 
 const HEIGHT_DEEP: float = -0.85
@@ -142,6 +143,8 @@ static func get_build_cost(building_type: int) -> Dictionary:
 			return {"wood": 5, "stone": 0, "food": 0}
 		BuildingType.FLOOR:
 			return {"wood": 1, "stone": 0, "food": 0}
+		BuildingType.STOCKPILE:
+			return {"wood": 0, "stone": 0, "food": 0}
 		_:
 			return {"wood": 0, "stone": 0, "food": 0}
 
@@ -181,7 +184,6 @@ static func get_resource_for_building(building_type: int) -> String:
 static func building_type_to_rect(type: int) -> Rect2:
 	if type < 3:
 		return Rect2(type * 64, 0, 64, 64)
-	# Fallback sizes for wall/door/floor placeholders
 	match type:
 		BuildingType.WALL:
 			return Rect2(0, 64, 32, 32)
@@ -190,10 +192,10 @@ static func building_type_to_rect(type: int) -> Rect2:
 		BuildingType.FLOOR:
 			return Rect2(64, 64, 32, 32)
 		_:
-			return Rect2(0, 0, 32, 32)
+			return Rect2(96, 64, 32, 32)
 
 static func get_chunk_coords(x: int, y: int) -> Vector2i:
-	return Vector2i(floor(float(x) / CHUNK_SIZE), floor(float(y) / CHUNK_SIZE))
+	return Vector2i(floor(float(x) / CHUNK_SIZE), floor(y / float(CHUNK_SIZE)))
 
 static func get_chunk_count() -> int:
 	return ceili(float(WORLD_SIZE) / CHUNK_SIZE)

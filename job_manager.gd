@@ -7,21 +7,23 @@ const PRODUCTION_AMOUNT: int = 1
 
 var tick_timer: float = 0.0
 
-func _ready():
-	if not (OS.has_feature("dedicated_server") or DisplayServer.get_name() == "headless"):
-		set_physics_process(false)
-
 func _physics_process(delta):
-	if not (OS.has_feature("dedicated_server") or DisplayServer.get_name() == "headless"):
+	if not multiplayer.is_server():
 		return
 	tick_timer += delta
 	if tick_timer >= TICK_RATE:
 		tick_timer -= TICK_RATE
 		_tick()
 
+func _ready():
+	if not multiplayer.is_server():
+		set_physics_process(false)
+
 func _tick():
 	_process_builders()
 	_process_workers()
+	Network.broadcast_resource_sync()
+	Network.rpc("sync_villagers", GameState.villagers.duplicate())
 
 func _process_builders():
 	for id in GameState.villagers:
@@ -49,7 +51,8 @@ func _process_builders():
 					v["workplace"] = {"x": pos.x, "y": pos.y}
 					v["home"] = {"x": pos.x, "y": pos.y}
 					v["building_type"] = bp["type"]
-				print("Server: builder ", id, " became ", v["job"], " at ", pos)
+					v["carrying"] = {"resource": "", "amount": 0}
+					print("Server: builder ", id, " became ", v["job"], " at ", pos)
 				v["target_blueprint"] = ""
 				v["state"] = "idle"
 			else:
@@ -67,16 +70,19 @@ func _process_workers():
 		var res := PlanetGenerator.get_resource_for_job(v["job"])
 		if res == "":
 			continue
-		if v["state"] == "idle" or v["state"] == "working":
-			v["progress"] += WORK_UNITS_PER_TICK
-			v["state"] = "working"
-			if v["progress"] >= 1.0:
-				v["progress"] = 0.0
-				v["carrying"] += PRODUCTION_AMOUNT
-				if GameState.resources.has(res):
-					GameState.resources[res] += PRODUCTION_AMOUNT
-					print("Server: villager ", id, " produced ", res, "=", GameState.resources[res])
-				v["state"] = "returning"
-		elif v["state"] == "returning":
-			v["carrying"] = 0
-			v["state"] = "idle"
+		match v["state"]:
+			"idle", "working":
+				v["progress"] += WORK_UNITS_PER_TICK
+				v["state"] = "working"
+				if v["progress"] >= 1.0:
+					v["progress"] = 0.0
+					v["carrying"] = {"resource": res, "amount": PRODUCTION_AMOUNT}
+					v["state"] = "hauling"
+			"hauling":
+				var wp := Vector2i(int(v["workplace"]["x"]), int(v["workplace"]["y"]))
+				if GameState.deposit_to_nearest_stockpile(wp, v["carrying"]["resource"], v["carrying"]["amount"]):
+					v["carrying"] = {"resource": "", "amount": 0}
+					v["state"] = "idle"
+				else:
+					# No stockpile yet; drop resources on ground? For now keep carrying and retry
+					v["state"] = "hauling"

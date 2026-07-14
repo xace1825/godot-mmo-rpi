@@ -4,6 +4,7 @@ const SAVE_PATH: String = "user://world_save.json"
 
 var buildings: Dictionary = {}
 var blueprints: Dictionary = {}
+var stockpiles: Dictionary = {}
 var world_seed: int = 12345
 var world: Array = []
 var resources: Dictionary = {
@@ -29,9 +30,12 @@ func can_build_at(pos: Vector2i) -> bool:
 	var type := get_tile_type(pos)
 	return PlanetGenerator.is_buildable(type)
 
+func _pos_key(pos: Vector2i) -> String:
+	return "%d,%d" % [pos.x, pos.y]
+
 func add_blueprint(pos: Vector2i, building_type: int = -1) -> int:
 	ensure_world_generated()
-	var key = "%d,%d" % [pos.x, pos.y]
+	var key = _pos_key(pos)
 	if buildings.has(key) or blueprints.has(key):
 		print("Server: tile already occupied")
 		return -1
@@ -53,6 +57,37 @@ func add_blueprint(pos: Vector2i, building_type: int = -1) -> int:
 	print("Server: added blueprint ", key, " type ", type_id, " cost ", cost)
 	return type_id
 
+func add_stockpile(topleft: Vector2i, size: Vector2i) -> bool:
+	ensure_world_generated()
+	var zone: Array = []
+	for dx in range(size.x):
+		for dy in range(size.y):
+			var pos := Vector2i(topleft.x + dx, topleft.y + dy)
+			var key: String = _pos_key(pos)
+			if not can_build_at(pos):
+				print("Server: cannot place stockpile on non-buildable tile ", pos)
+				return false
+			if buildings.has(key) or blueprints.has(key):
+				print("Server: stockpile overlaps building at ", pos)
+				return false
+			zone.append(key)
+	var stock_id: String = "stock_%d_%d_%d" % [topleft.x, topleft.y, zone.size()]
+	var is_first_stockpile: bool = stockpiles.is_empty()
+	stockpiles[stock_id] = {
+		"topleft": {"x": topleft.x, "y": topleft.y},
+		"size": {"x": size.x, "y": size.y},
+		"zone": zone,
+		"resources": {"wood": 0, "food": 0, "stone": 0}
+	}
+	# Starting resources go to the first stockpile so construction can happen
+	if is_first_stockpile:
+		stockpiles[stock_id]["resources"] = {"wood": 50, "stone": 50, "food": 50}
+		print("Server: placed starting resources into first stockpile ", stock_id)
+	_recalc_total_resources()
+	print("Server: added stockpile ", stock_id, " with ", zone.size(), " tiles")
+	Network.broadcast_stockpile_added(stock_id, stockpiles[stock_id])
+	return true
+
 func spawn_builder_for_blueprint(pos: Vector2i) -> Dictionary:
 	var id := next_villager_id
 	next_villager_id += 1
@@ -65,7 +100,7 @@ func spawn_builder_for_blueprint(pos: Vector2i) -> Dictionary:
 		"job": "builder",
 		"state": "idle",
 		"progress": 0.0,
-		"carrying": 0,
+		"carrying": {"resource": "", "amount": 0},
 		"target_blueprint": "%d,%d" % [pos.x, pos.y],
 		"building_type": -1
 	}
@@ -74,24 +109,31 @@ func spawn_builder_for_blueprint(pos: Vector2i) -> Dictionary:
 	return v
 
 func complete_blueprint(pos: Vector2i) -> bool:
-	var key = "%d,%d" % [pos.x, pos.y]
+	var key: String = _pos_key(pos)
 	if not blueprints.has(key):
 		return false
-	var bp = blueprints[key]
+	var bp: Dictionary = blueprints[key]
 	var cost: Dictionary = bp["cost"]
-	for res in cost:
-		if resources[res] < cost[res]:
-			print("Server: not enough ", res, " to complete blueprint ", key)
+	# Try to consume resources from nearest stockpile
+	var stock_id: String = find_nearest_stockpile(pos)
+	if stock_id == "":
+		print("Server: no stockpile available to complete blueprint ", key)
+		return false
+	var stock: Dictionary = stockpiles[stock_id]
+	for res: String in cost:
+		if stock["resources"][res] < cost[res]:
+			print("Server: stockpile ", stock_id, " lacks ", res, " for blueprint ", key)
 			return false
-	for res in cost:
-		resources[res] -= cost[res]
+	for res: String in cost:
+		stock["resources"][res] -= cost[res]
 	buildings[key] = bp["type"]
 	var completed_type: int = bp["type"]
 	blueprints.erase(key)
-	# Only spawn workers for production stations, not walls/doors/floors
+	_recalc_total_resources()
+	# Only spawn workers for production stations, not walls/doors/floors/stockpiles
 	if completed_type < PlanetGenerator.BuildingType.WALL:
 		spawn_villagers_for_station(pos, completed_type)
-	print("Server: blueprint completed at ", key, " type ", completed_type)
+	print("Server: blueprint completed at ", key, " type ", completed_type, " using stockpile ", stock_id)
 	Network.broadcast_building_completed(pos, completed_type)
 	return true
 
@@ -102,7 +144,7 @@ func spawn_villagers_for_station(pos: Vector2i, station_type: int) -> Array:
 	var job_type := PlanetGenerator.get_job_type(station_type)
 	if job_type == "":
 		return []
-	var key = "%d,%d" % [pos.x, pos.y]
+	var key = _pos_key(pos)
 	var slots := PlanetGenerator.get_job_slots(station_type)
 	var spawned := []
 	for i in range(slots):
@@ -117,7 +159,7 @@ func spawn_villagers_for_station(pos: Vector2i, station_type: int) -> Array:
 			"job": job_type,
 			"state": "idle",
 			"progress": 0.0,
-			"carrying": 0,
+			"carrying": {"resource": "", "amount": 0},
 			"building_type": station_type
 		}
 		villagers[str(id)] = v
@@ -125,12 +167,50 @@ func spawn_villagers_for_station(pos: Vector2i, station_type: int) -> Array:
 		print("Server: spawned villager ", id, " as ", job_type, " at ", key)
 	return spawned
 
+func find_nearest_stockpile(pos: Vector2i) -> String:
+	var best_id := ""
+	var best_dist := 999999.0
+	for stock_id: String in stockpiles:
+		var stock: Dictionary = stockpiles[stock_id]
+		var cx: float = stock["topleft"]["x"] + stock["size"]["x"] / 2.0
+		var cy: float = stock["topleft"]["y"] + stock["size"]["y"] / 2.0
+		var dist := sqrt(pow(cx - pos.x, 2) + pow(cy - pos.y, 2))
+		if dist < best_dist:
+			best_dist = dist
+			best_id = stock_id
+	return best_id
+
+func deposit_to_nearest_stockpile(pos: Vector2i, resource: String, amount: int) -> bool:
+	var stock_id: String = find_nearest_stockpile(pos)
+	if stock_id == "":
+		return false
+	var stock: Dictionary = stockpiles[stock_id]
+	stock["resources"][resource] += amount
+	_recalc_total_resources()
+	Network.broadcast_resource_sync()
+	return true
+
+func _recalc_total_resources():
+	resources = {"wood": 0, "food": 0, "stone": 0}
+	for stock_id: String in stockpiles:
+		var stock: Dictionary = stockpiles[stock_id]
+		for res: String in resources:
+			resources[res] += stock["resources"][res]
+
+func get_stockpile_at(pos: Vector2i) -> String:
+	var key: String = _pos_key(pos)
+	for stock_id: String in stockpiles:
+		if key in stockpiles[stock_id]["zone"]:
+			return stock_id
+	return ""
+
 func get_world_data() -> Dictionary:
 	ensure_world_generated()
 	return {
 		"seed": world_seed,
 		"buildings": buildings.duplicate(),
 		"blueprints": blueprints.duplicate(),
+		"stockpiles": stockpiles.duplicate(),
 		"resources": resources.duplicate(),
 		"villagers": villagers.duplicate()
 	}
@@ -149,10 +229,11 @@ func load_world():
 		world = PlanetGenerator.generate_world(world_seed)
 		buildings = data.get("buildings", {})
 		blueprints = data.get("blueprints", {})
+		stockpiles = data.get("stockpiles", {})
 		resources = data.get("resources", {"wood": 0, "food": 0, "stone": 0})
 		villagers = data.get("villagers", {})
 		next_villager_id = data.get("next_villager_id", 1)
-		print("Server: loaded planet with ", buildings.size(), " buildings, ", blueprints.size(), " blueprints, ", villagers.size(), " villagers")
+		print("Server: loaded planet with ", buildings.size(), " buildings, ", blueprints.size(), " blueprints, ", stockpiles.size(), " stockpiles, ", villagers.size(), " villagers")
 	else:
 		push_error("Failed to parse save file")
 
@@ -162,6 +243,7 @@ func save_world():
 		"seed": world_seed,
 		"buildings": buildings,
 		"blueprints": blueprints,
+		"stockpiles": stockpiles,
 		"resources": resources,
 		"villagers": villagers,
 		"next_villager_id": next_villager_id

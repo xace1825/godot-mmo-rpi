@@ -56,3 +56,8 @@ text = "Floor"
 layout_mode = 2
 size_flags_horizontal = 3
 text = "Door"
+
+[node name="StockpileButton" type="Button" parent="Panel/HBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Stockpile"

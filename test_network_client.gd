@@ -9,6 +9,7 @@ var received_villagers: Dictionary = {}
 var received_resources: Dictionary = {}
 var received_blueprints: Dictionary = {}
 var received_buildings: Dictionary = {}
+var received_stockpiles: Dictionary = {}
 var setup_done: bool = false
 
 func _ready():
@@ -18,6 +19,7 @@ func _ready():
     Network.resource_sync.connect(_on_resource_sync)
     Network.blueprint_placed.connect(_on_blueprint_placed)
     Network.building_placed.connect(_on_building_placed)
+    Network.stockpile_added.connect(_on_stockpile_added)
     multiplayer.connected_to_server.connect(_on_connected)
     multiplayer.connection_failed.connect(func(): print("CONNECTION FAILED"); get_tree().quit(1))
     Network.start_client(DEFAULT_SERVER_IP, DEFAULT_SERVER_PORT)
@@ -26,11 +28,12 @@ func _on_connected():
     print("Connected to server")
 
 func _on_sync(data: Dictionary):
-    print("Full sync received with ", data["buildings"].size(), " buildings, ", data.get("blueprints", {}).size(), " blueprints")
+    print("Full sync received with ", data["buildings"].size(), " buildings, ", data.get("blueprints", {}).size(), " blueprints, ", data.get("stockpiles", {}).size(), " stockpiles")
     seed_value = data.get("seed", 12345)
     world = PlanetGenerator.generate_world(seed_value)
     received_buildings = data.get("buildings", {})
     received_blueprints = data.get("blueprints", {})
+    received_stockpiles = data.get("stockpiles", {})
     received_villagers = data.get("villagers", {})
     received_resources = data.get("resources", {"wood": 0, "food": 0, "stone": 0})
     if not setup_done:
@@ -53,10 +56,10 @@ func _on_building_placed(pos: Vector2i, type_id: int):
     if received_blueprints.has(key):
         received_blueprints.erase(key)
 
-func _run_tests(data: Dictionary):
-    await get_tree().create_timer(0.5).timeout
+func _on_stockpile_added(id: String, data: Dictionary):
+    received_stockpiles[id] = data
 
-    # Find buildable tile closest to center
+func _find_buildable_near_center() -> Vector2i:
     var center := PlanetGenerator.WORLD_SIZE / 2
     var valid_pos := Vector2i(center, center)
     var best_dist := 999999
@@ -70,7 +73,50 @@ func _run_tests(data: Dictionary):
                 if dist < best_dist:
                     best_dist = dist
                     valid_pos = pos
+    return valid_pos
+
+func _find_stockpile_zone(center: Vector2i, size: Vector2i) -> Vector2i:
+    for radius in range(1, 30):
+        for dx in range(-radius, radius + 1):
+            for dy in range(-radius, radius + 1):
+                var top_left := Vector2i(center.x + dx, center.y + dy)
+                if top_left.x < 0 or top_left.x + size.x > PlanetGenerator.WORLD_SIZE or top_left.y < 0 or top_left.y + size.y > PlanetGenerator.WORLD_SIZE:
+                    continue
+                var valid := true
+                for sx in range(size.x):
+                    for sy in range(size.y):
+                        var pos := Vector2i(top_left.x + sx, top_left.y + sy)
+                        if not PlanetGenerator.is_buildable(world[pos.x][pos.y]):
+                            valid = false
+                            break
+                    if not valid:
+                        break
+                if valid:
+                    return top_left
+    return Vector2i(-1, -1)
+
+func _run_tests(data: Dictionary):
+    await get_tree().create_timer(0.5).timeout
+
+    var valid_pos := _find_buildable_near_center()
     
+    # Step 1: Create a stockpile near center so resources can be stored
+    var stock_size := Vector2i(3, 3)
+    var stock_top_left := _find_stockpile_zone(valid_pos, stock_size)
+    if stock_top_left.x < 0:
+        print("TEST FAIL: no buildable zone for stockpile")
+        get_tree().quit(1)
+        return
+    print("TEST: placing stockpile at ", stock_top_left, " size ", stock_size)
+    Network.ask_stockpile(stock_top_left, stock_size)
+    await get_tree().create_timer(1.0).timeout
+    
+    if received_stockpiles.size() >= 1:
+        print("TEST PASS: stockpile added")
+    else:
+        print("TEST FAIL: stockpile not added")
+    
+    # Step 2: Build a sawmill (needs resources from stockpile)
     print("TEST: placing sawmill blueprint at ", valid_pos)
     Network.ask_build(valid_pos)
     await get_tree().create_timer(2.0).timeout
@@ -86,14 +132,14 @@ func _run_tests(data: Dictionary):
     else:
         print("TEST FAIL: builder not spawned")
     
-    await get_tree().create_timer(2.0).timeout
+    await get_tree().create_timer(5.0).timeout
     
     if received_buildings.has(key):
         print("TEST PASS: blueprint completed into building")
     else:
-        print("TEST INFO: blueprint not yet completed")
+        print("TEST INFO: blueprint not yet completed, resources=", received_resources)
     
-    # Build walls and floors around the sawmill
+    # Step 3: Build walls and floors around the sawmill
     print("TEST: placing walls and floors around sawmill")
     var offsets: Array = [
         Vector2i(-2, -2), Vector2i(-1, -2), Vector2i(0, -2), Vector2i(1, -2), Vector2i(2, -2),
@@ -110,7 +156,7 @@ func _run_tests(data: Dictionary):
                 Network.ask_build(pos, PlanetGenerator.BuildingType.FLOOR)
             await get_tree().create_timer(0.1).timeout
     
-    await get_tree().create_timer(15.0).timeout
+    await get_tree().create_timer(10.0).timeout
     print("TEST: buildings after walls/floors = ", received_buildings.size())
     print("TEST: resources = ", received_resources)
     
