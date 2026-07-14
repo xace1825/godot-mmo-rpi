@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://test_network_client"]
+
+[ext_resource type="Script" path="res://test_network_client.gd" id="1_test"]
+
+[node name="TestClient" type="Node"]
+script = ExtResource("1_test")

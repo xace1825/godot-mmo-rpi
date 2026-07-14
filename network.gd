@@ -32,16 +32,13 @@ func _on_peer_connected(id: int):
 	rpc_id(id, "sync_world", GameState.get_world_data())
 
 func ask_build(tile_pos: Vector2i):
-	# Clients send build requests to the server (peer id 1)
+	print("Network ask_build ", tile_pos, " is_server=", multiplayer.is_server())
 	if multiplayer.is_server():
 		return
 	rpc_id(1, "request_build", tile_pos)
 
 @rpc("any_peer", "call_remote", "reliable")
 func request_build(tile_pos: Vector2i):
-	print("request_build called on server at ", tile_pos)
-	if not multiplayer.is_server():
-		return
 	print("Server: build request at ", tile_pos)
 	var success = GameState.add_building(tile_pos)
 	print("Server: build success=", success)
@@ -53,7 +50,6 @@ func request_build(tile_pos: Vector2i):
 
 @rpc("authority", "call_local", "reliable")
 func place_building(pos: Vector2i, type_id: int):
-	print("place_building called at ", pos)
 	building_placed.emit(pos, type_id)
 
 @rpc("authority", "call_remote", "reliable")
