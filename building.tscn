@@ -1,14 +1,11 @@
 [gd_scene format=3 uid="uid://bld0000000000000000000000000001"]
 
-[ext_resource type="Texture2D" uid="uid://1v4ao15e6bcp" path="res://building.png" id="1_bldg"]
-[ext_resource type="Texture2D" uid="uid://dpv8s4gs2c46g" path="res://roof.png" id="2_roof"]
+[ext_resource type="Texture2D" uid="uid://br116apn64pj6" path="res://buildings.png" id="1_bldg"]
 
 [node name="Building" type="Node2D"]
 z_index = 1
 
-[node name="Body" type="Sprite2D" parent="."]
+[node name="Sprite" type="Sprite2D" parent="."]
 texture = ExtResource("1_bldg")
-
-[node name="Roof" type="Sprite2D" parent="."]
-position = Vector2(0, -20)
-texture = ExtResource("2_roof")
+region_enabled = true
+region_rect = Rect2(0, 0, 64, 64)

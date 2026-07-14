@@ -43,11 +43,13 @@ func request_build(tile_pos: Vector2i):
 	if not multiplayer.is_server():
 		return
 	print("Server: build request at ", tile_pos)
-	var success = GameState.add_building(tile_pos, 1)
+	var success = GameState.add_building(tile_pos)
 	print("Server: build success=", success)
 	if success:
 		GameState.save_world()
-		rpc("place_building", tile_pos, 1)
+		var key := "%d,%d" % [tile_pos.x, tile_pos.y]
+		var type_id := GameState.buildings[key] as int
+		rpc("place_building", tile_pos, type_id)
 
 @rpc("authority", "call_local", "reliable")
 func place_building(pos: Vector2i, type_id: int):

@@ -11,6 +11,12 @@ enum TileType {
 	DESERT
 }
 
+enum BuildingType {
+	SAWMILL,
+	FARM,
+	MINE
+}
+
 static func generate_world(seed_value: int = 0) -> Array:
 	var noise := FastNoiseLite.new()
 	noise.seed = seed_value
@@ -29,7 +35,6 @@ static func generate_world(seed_value: int = 0) -> Array:
 	return world
 
 static func _noise_to_tile(n: float) -> int:
-	# n is typically in range [-1, 1]
 	if n < -0.3:
 		return TileType.WATER
 	elif n < 0.1:
@@ -43,3 +48,19 @@ static func _noise_to_tile(n: float) -> int:
 
 static func tile_to_atlas_coords(type: int) -> Vector2i:
 	return Vector2i(type, 0)
+
+static func is_buildable(type: int) -> bool:
+	return type != TileType.WATER and type != TileType.MOUNTAIN
+
+static func get_building_type(tile_type: int) -> int:
+	match tile_type:
+		TileType.FOREST:
+			return BuildingType.SAWMILL
+		TileType.MOUNTAIN:
+			return BuildingType.MINE
+		_:
+			return BuildingType.FARM
+
+static func building_type_to_rect(type: int) -> Rect2:
+	# atlas is 192x64, each building 64x64
+	return Rect2(type * 64, 0, 64, 64)

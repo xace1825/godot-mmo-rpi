@@ -121,9 +121,12 @@ func _on_building_placed(pos: Vector2i, type_id: int):
 		return
 	var b = building_scene.instantiate()
 	b.position = Vector2(pos.x * TILE_SIZE + TILE_SIZE / 2, pos.y * TILE_SIZE + TILE_SIZE / 2)
+	var sprite := b.get_node("Sprite") as Sprite2D
+	if sprite:
+		sprite.region_rect = WorldGenerator.building_type_to_rect(type_id)
 	add_child(b)
 	client_buildings[pos] = b
-	print("Client placed building at ", pos)
+	print("Client placed building at ", pos, " type ", type_id)
 
 func _on_full_sync(data: Dictionary):
 	print("Client received full sync with ", data["buildings"].size(), " buildings")
