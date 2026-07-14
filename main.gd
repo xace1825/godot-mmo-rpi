@@ -10,7 +10,10 @@ const DEFAULT_SERVER_IP: String = "192.168.0.102"
 const DEFAULT_SERVER_PORT: int = 7777
 
 var building_scene = preload("res://building.tscn")
+var villager_scene = preload("res://villager.tscn")
 var client_buildings: Dictionary = {}
+var client_villagers: Dictionary = {}
+var client_resources: Dictionary = {"wood": 0, "food": 0, "stone": 0}
 var is_server: bool = false
 var camera_frames: int = 0
 var camera_speed: float = 1200.0
@@ -106,6 +109,8 @@ func _input(event):
 func setup_client():
 	Network.building_placed.connect(_on_building_placed)
 	Network.full_sync.connect(_on_full_sync)
+	Network.villager_sync.connect(_on_villager_sync)
+	Network.resource_sync.connect(_on_resource_sync)
 
 func _on_building_placed(pos: Vector2i, type_id: int):
 	if client_buildings.has(pos):
@@ -124,11 +129,47 @@ func _on_full_sync(data: Dictionary):
 	var seed_value := data.get("seed", 12345) as int
 	world_data = PlanetGenerator.generate_world(seed_value)
 	chunk_manager = ChunkManager.new(tile_map, world_data)
-	chunk_manager.update(Vector2(WORLD_SIZE * TILE_SIZE / 2, WORLD_SIZE * TILE_SIZE / 2))
+	var first_building_pos := Vector2i(-1, -1)
 	for pos_str in data["buildings"]:
 		var parts: PackedStringArray = pos_str.split(",")
 		var pos = Vector2i(int(parts[0]), int(parts[1]))
 		_on_building_placed(pos, data["buildings"][pos_str])
+		if first_building_pos.x < 0:
+			first_building_pos = pos
+	if first_building_pos.x >= 0 and camera:
+		var target := Vector2(first_building_pos.x * TILE_SIZE + TILE_SIZE / 2, first_building_pos.y * TILE_SIZE + TILE_SIZE / 2)
+		camera.global_position = target
+		camera.position = target
+		camera.offset = Vector2.ZERO
+		camera.make_current()
+		camera.force_update_scroll()
+		camera.reset_smoothing()
+		camera_frames = 999
+		chunk_manager.update(target)
+	else:
+		chunk_manager.update(Vector2(WORLD_SIZE * TILE_SIZE / 2, WORLD_SIZE * TILE_SIZE / 2))
+	_on_villager_sync(data.get("villagers", {}))
+	_on_resource_sync(data.get("resources", {"wood": 0, "food": 0, "stone": 0}))
+
+func _on_villager_sync(villagers: Dictionary):
+	for id in villagers:
+		var v = villagers[id] as Dictionary
+		var pos := Vector2i(int(v["pos"]["x"]), int(v["pos"]["y"]))
+		var job := v["job"] as String
+		if client_villagers.has(id):
+			var node = client_villagers[id]
+			node.position = Vector2(pos.x * TILE_SIZE + TILE_SIZE / 2, pos.y * TILE_SIZE + TILE_SIZE / 2)
+			node.setup(job)
+		else:
+			var node = villager_scene.instantiate()
+			node.position = Vector2(pos.x * TILE_SIZE + TILE_SIZE / 2, pos.y * TILE_SIZE + TILE_SIZE / 2)
+			node.setup(job)
+			add_child(node)
+			client_villagers[id] = node
+
+func _on_resource_sync(resources: Dictionary):
+	client_resources = resources.duplicate()
+	print("Client resources: wood=", client_resources.get("wood", 0), " food=", client_resources.get("food", 0), " stone=", client_resources.get("stone", 0))
 
 func _draw():
 	pass

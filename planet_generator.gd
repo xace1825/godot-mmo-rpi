@@ -125,6 +125,34 @@ static func get_building_type(tile_type: int) -> int:
 		_:
 			return BuildingType.FARM
 
+static func get_job_type(building_type: int) -> String:
+	match building_type:
+		BuildingType.SAWMILL:
+			return "lumberjack"
+		BuildingType.MINE:
+			return "miner"
+		BuildingType.FARM:
+			return "farmer"
+		_:
+			return ""
+
+static func get_job_slots(building_type: int) -> int:
+	return 2
+
+static func get_resource_for_job(job: String) -> String:
+	match job:
+		"lumberjack":
+			return "wood"
+		"miner":
+			return "stone"
+		"farmer":
+			return "food"
+		_:
+			return ""
+
+static func get_resource_for_building(building_type: int) -> String:
+	return get_resource_for_job(get_job_type(building_type))
+
 static func building_type_to_rect(type: int) -> Rect2:
 	return Rect2(type * 64, 0, 64, 64)
 

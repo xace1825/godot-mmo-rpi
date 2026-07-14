@@ -11,6 +11,7 @@ config/icon="res://icon.svg"
 [autoload]
 Network="*res://network.gd"
 GameState="*res://game_state.gd"
+JobManager="*res://job_manager.gd"
 
 [display]
 window/size/viewport_width=1280

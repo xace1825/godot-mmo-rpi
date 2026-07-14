@@ -1,0 +1,10 @@
+[gd_scene load_steps=2 format=3 uid="uid://c0villager12345"]
+
+[ext_resource type="Texture2D" uid="uid://c1xryumkqxfw0" path="res://villager.png" id="1_sprite"]
+[ext_resource type="Script" path="res://villager.gd" id="2_script"]
+
+[node name="Villager" type="Node2D"]
+script = ExtResource("2_script")
+
+[node name="Sprite" type="Sprite2D" parent="."]
+texture = ExtResource("1_sprite")

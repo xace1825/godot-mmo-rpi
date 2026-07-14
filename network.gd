@@ -2,11 +2,15 @@ extends Node
 
 signal building_placed(pos: Vector2i, type_id: int)
 signal full_sync(world_data: Dictionary)
+signal villager_sync(villagers: Dictionary)
+signal resource_sync(resources: Dictionary)
 
 const PORT: int = 7777
 const MAX_CLIENTS: int = 100
+const SYNC_INTERVAL: float = 2.0
 
 var multiplayer_peer: ENetMultiplayerPeer = null
+var sync_timer: float = 0.0
 
 func start_server():
 	multiplayer_peer = ENetMultiplayerPeer.new()
@@ -27,12 +31,24 @@ func start_client(address: String, port: int):
 	multiplayer.multiplayer_peer = multiplayer_peer
 	print("Connecting to ", address, ":", port)
 
+func _process(delta):
+	if not multiplayer.is_server():
+		return
+	sync_timer += delta
+	if sync_timer >= SYNC_INTERVAL:
+		sync_timer -= SYNC_INTERVAL
+		_broadcast_state()
+
+func _broadcast_state():
+	var data := GameState.get_world_data()
+	if multiplayer.has_multiplayer_peer():
+		rpc("sync_world_state", data)
+
 func _on_peer_connected(id: int):
 	print("Peer connected: ", id)
 	rpc_id(id, "sync_world", GameState.get_world_data())
 
 func ask_build(tile_pos: Vector2i):
-	print("Network ask_build ", tile_pos, " is_server=", multiplayer.is_server())
 	if multiplayer.is_server():
 		return
 	rpc_id(1, "request_build", tile_pos)
@@ -40,13 +56,16 @@ func ask_build(tile_pos: Vector2i):
 @rpc("any_peer", "call_remote", "reliable")
 func request_build(tile_pos: Vector2i):
 	print("Server: build request at ", tile_pos)
-	var success = GameState.add_building(tile_pos)
-	print("Server: build success=", success)
-	if success:
+	var type_id := GameState.add_building(tile_pos)
+	print("Server: build success=", type_id)
+	if type_id >= 0:
 		GameState.save_world()
 		var key := "%d,%d" % [tile_pos.x, tile_pos.y]
-		var type_id := GameState.buildings[key] as int
 		rpc("place_building", tile_pos, type_id)
+		var spawned := GameState.spawn_villagers_for_building(tile_pos, type_id)
+		for v in spawned:
+			rpc("spawn_villager", v)
+		GameState.save_world()
 
 @rpc("authority", "call_local", "reliable")
 func place_building(pos: Vector2i, type_id: int):
@@ -56,3 +75,13 @@ func place_building(pos: Vector2i, type_id: int):
 func sync_world(world_data: Dictionary):
 	print("Client: received sync_world with ", world_data["buildings"].size(), " buildings")
 	full_sync.emit(world_data)
+
+@rpc("authority", "call_remote", "reliable")
+func sync_world_state(world_data: Dictionary):
+	villager_sync.emit(world_data.get("villagers", {}))
+	resource_sync.emit(world_data.get("resources", {"wood": 0, "food": 0, "stone": 0}))
+
+@rpc("authority", "call_local", "reliable")
+func spawn_villager(villager: Dictionary):
+	# Client-side villager will be created/updated via sync_world_state
+	pass

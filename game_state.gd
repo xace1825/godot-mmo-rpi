@@ -5,6 +5,13 @@ const SAVE_PATH: String = "user://world_save.json"
 var buildings: Dictionary = {}
 var world_seed: int = 12345
 var world: Array = []
+var resources: Dictionary = {
+	"wood": 0,
+	"food": 0,
+	"stone": 0
+}
+var villagers: Dictionary = {}
+var next_villager_id: int = 1
 
 func ensure_world_generated():
 	if world.is_empty():
@@ -21,28 +28,57 @@ func can_build_at(pos: Vector2i) -> bool:
 	var type := get_tile_type(pos)
 	return PlanetGenerator.is_buildable(type)
 
-func add_building(pos: Vector2i, type_id: int = -1) -> bool:
+func add_building(pos: Vector2i, type_id: int = -1) -> int:
 	ensure_world_generated()
 	var key = "%d,%d" % [pos.x, pos.y]
 	if buildings.has(key):
 		print("Server: tile already occupied")
-		return false
+		return -1
 	if not can_build_at(pos):
 		print("Server: cannot build on this terrain")
-		return false
+		return -1
 	var tile_type := get_tile_type(pos)
 	var building_type := type_id
 	if building_type < 0:
 		building_type = PlanetGenerator.get_building_type(tile_type)
 	buildings[key] = building_type
 	print("Server: added building ", key, " type ", building_type)
-	return true
+	return building_type
+
+func spawn_villagers_for_building(pos: Vector2i, building_type: int) -> Array:
+	var job_type := PlanetGenerator.get_job_type(building_type)
+	if job_type == "":
+		return []
+	var key = "%d,%d" % [pos.x, pos.y]
+	var slots := PlanetGenerator.get_job_slots(building_type)
+	var spawned := []
+	for i in range(slots):
+		var id := next_villager_id
+		next_villager_id += 1
+		var v := {
+			"id": id,
+			"name": "Worker %d" % id,
+			"pos": {"x": pos.x, "y": pos.y},
+			"home": {"x": pos.x, "y": pos.y},
+			"workplace": {"x": pos.x, "y": pos.y},
+			"job": job_type,
+			"state": "idle",
+			"progress": 0.0,
+			"carrying": 0,
+			"building_type": building_type
+		}
+		villagers[str(id)] = v
+		spawned.append(v)
+		print("Server: spawned villager ", id, " as ", job_type, " at ", key)
+	return spawned
 
 func get_world_data() -> Dictionary:
 	ensure_world_generated()
 	return {
 		"seed": world_seed,
-		"buildings": buildings.duplicate()
+		"buildings": buildings.duplicate(),
+		"resources": resources.duplicate(),
+		"villagers": villagers.duplicate()
 	}
 
 func load_world():
@@ -58,12 +94,21 @@ func load_world():
 		world_seed = data.get("seed", world_seed)
 		world = PlanetGenerator.generate_world(world_seed)
 		buildings = data.get("buildings", {})
-		print("Server: loaded planet with ", buildings.size(), " buildings")
+		resources = data.get("resources", {"wood": 0, "food": 0, "stone": 0})
+		villagers = data.get("villagers", {})
+		next_villager_id = data.get("next_villager_id", 1)
+		print("Server: loaded planet with ", buildings.size(), " buildings, ", villagers.size(), " villagers")
 	else:
 		push_error("Failed to parse save file")
 
 func save_world():
 	var file = FileAccess.open(SAVE_PATH, FileAccess.WRITE)
-	file.store_string(JSON.stringify(get_world_data(), "\t"))
+	file.store_string(JSON.stringify({
+		"seed": world_seed,
+		"buildings": buildings,
+		"resources": resources,
+		"villagers": villagers,
+		"next_villager_id": next_villager_id
+	}, "\t"))
 	file.close()
 	print("Server: world saved")

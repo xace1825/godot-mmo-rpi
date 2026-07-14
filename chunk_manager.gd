@@ -1,6 +1,6 @@
 class_name ChunkManager
 
-const RENDER_RADIUS: int = 1
+const RENDER_RADIUS: int = 2
 
 var tile_map: TileMap
 var world: Array
