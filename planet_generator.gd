@@ -116,7 +116,7 @@ static func is_buildable(type: int) -> bool:
 		_:
 			return true
 
-static func get_building_type(tile_type: int) -> int:
+static func get_station_type(tile_type: int) -> int:
 	match tile_type:
 		TileType.FOREST, TileType.JUNGLE, TileType.TAIGA:
 			return BuildingType.SAWMILL
@@ -124,6 +124,17 @@ static func get_building_type(tile_type: int) -> int:
 			return BuildingType.MINE
 		_:
 			return BuildingType.FARM
+
+static func get_station_cost(station_type: int) -> Dictionary:
+	match station_type:
+		BuildingType.SAWMILL:
+			return {"wood": 10, "stone": 0, "food": 0}
+		BuildingType.MINE:
+			return {"wood": 5, "stone": 15, "food": 0}
+		BuildingType.FARM:
+			return {"wood": 5, "stone": 0, "food": 0}
+		_:
+			return {"wood": 0, "stone": 0, "food": 0}
 
 static func get_job_type(building_type: int) -> String:
 	match building_type:
@@ -137,7 +148,12 @@ static func get_job_type(building_type: int) -> String:
 			return ""
 
 static func get_job_slots(building_type: int) -> int:
-	return 2
+	if get_job_type(building_type) != "":
+		return 2
+	return 0
+
+static func is_station(type: int) -> bool:
+	return get_job_type(type) != ""
 
 static func get_resource_for_job(job: String) -> String:
 	match job:

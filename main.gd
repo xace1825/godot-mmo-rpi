@@ -10,8 +10,11 @@ const DEFAULT_SERVER_IP: String = "192.168.0.102"
 const DEFAULT_SERVER_PORT: int = 7777
 
 var building_scene = preload("res://building.tscn")
+# Simple colored placeholder for blueprints
+var blueprint_scene = preload("res://building.tscn")
 var villager_scene = preload("res://villager.tscn")
 var client_buildings: Dictionary = {}
+var client_blueprints: Dictionary = {}
 var client_villagers: Dictionary = {}
 var client_resources: Dictionary = {"wood": 0, "food": 0, "stone": 0}
 var is_server: bool = false
@@ -28,6 +31,10 @@ func _ready():
 		print("Starting DEDICATED SERVER mode")
 		Network.start_server()
 		GameState.load_world()
+		# Starting resources for testing
+		if GameState.resources["wood"] == 0 and GameState.resources["stone"] == 0 and GameState.resources["food"] == 0:
+			GameState.resources = {"wood": 50, "stone": 50, "food": 50}
+			print("Server: gave starting resources for testing")
 	else:
 		print("Starting CLIENT mode")
 		setup_client()
@@ -108,24 +115,43 @@ func _input(event):
 
 func setup_client():
 	Network.building_placed.connect(_on_building_placed)
+	Network.blueprint_placed.connect(_on_blueprint_placed)
 	Network.full_sync.connect(_on_full_sync)
 	Network.villager_sync.connect(_on_villager_sync)
 	Network.resource_sync.connect(_on_resource_sync)
 
+func _on_blueprint_placed(pos: Vector2i, type_id: int):
+	if client_blueprints.has(pos) or client_buildings.has(pos):
+		return
+	var b = blueprint_scene.instantiate()
+	b.position = Vector2(pos.x * TILE_SIZE + TILE_SIZE / 2, pos.y * TILE_SIZE + TILE_SIZE / 2)
+	var sprite := b.get_node("Sprite") as Sprite2D
+	if sprite:
+		sprite.region_rect = PlanetGenerator.building_type_to_rect(type_id)
+		sprite.modulate = Color(1, 1, 1, 0.5)
+	add_child(b)
+	client_blueprints[pos] = b
+	print("Client placed blueprint at ", pos, " type ", type_id)
+
 func _on_building_placed(pos: Vector2i, type_id: int):
 	if client_buildings.has(pos):
 		return
+	# Remove blueprint if exists
+	if client_blueprints.has(pos):
+		client_blueprints[pos].queue_free()
+		client_blueprints.erase(pos)
 	var b = building_scene.instantiate()
 	b.position = Vector2(pos.x * TILE_SIZE + TILE_SIZE / 2, pos.y * TILE_SIZE + TILE_SIZE / 2)
 	var sprite := b.get_node("Sprite") as Sprite2D
 	if sprite:
 		sprite.region_rect = PlanetGenerator.building_type_to_rect(type_id)
+		sprite.modulate = Color(1, 1, 1, 1)
 	add_child(b)
 	client_buildings[pos] = b
 	print("Client placed building at ", pos, " type ", type_id)
 
 func _on_full_sync(data: Dictionary):
-	print("Client received full sync with ", data["buildings"].size(), " buildings")
+	print("Client received full sync with ", data["buildings"].size(), " buildings, ", data.get("blueprints", {}).size(), " blueprints")
 	var seed_value := data.get("seed", 12345) as int
 	world_data = PlanetGenerator.generate_world(seed_value)
 	chunk_manager = ChunkManager.new(tile_map, world_data)
@@ -136,6 +162,10 @@ func _on_full_sync(data: Dictionary):
 		_on_building_placed(pos, data["buildings"][pos_str])
 		if first_building_pos.x < 0:
 			first_building_pos = pos
+	for pos_str in data.get("blueprints", {}):
+		var parts: PackedStringArray = pos_str.split(",")
+		var pos = Vector2i(int(parts[0]), int(parts[1]))
+		_on_blueprint_placed(pos, data["blueprints"][pos_str]["type"])
 	if first_building_pos.x >= 0 and camera:
 		var target := Vector2(first_building_pos.x * TILE_SIZE + TILE_SIZE / 2, first_building_pos.y * TILE_SIZE + TILE_SIZE / 2)
 		camera.global_position = target
@@ -163,8 +193,8 @@ func _on_villager_sync(villagers: Dictionary):
 		else:
 			var node = villager_scene.instantiate()
 			node.position = Vector2(pos.x * TILE_SIZE + TILE_SIZE / 2, pos.y * TILE_SIZE + TILE_SIZE / 2)
-			node.setup(job)
 			add_child(node)
+			node.setup(job)
 			client_villagers[id] = node
 
 func _on_resource_sync(resources: Dictionary):
