@@ -1,0 +1,58 @@
+[gd_scene load_steps=2 format=3 uid="uid://buildui000000000000000000000001"]
+
+[ext_resource type="Script" path="res://build_ui.gd" id="1_buildui"]
+
+[node name="BuildUI" type="CanvasLayer"]
+script = ExtResource("1_buildui")
+
+[node name="Panel" type="Panel" parent="."]
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -400.0
+offset_top = -70.0
+offset_right = 400.0
+offset_bottom = -10.0
+grow_horizontal = 2
+grow_vertical = 0
+
+[node name="HBoxContainer" type="HBoxContainer" parent="Panel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+alignment = 1
+
+[node name="SawmillButton" type="Button" parent="Panel/HBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Sawmill"
+
+[node name="FarmButton" type="Button" parent="Panel/HBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Farm"
+
+[node name="MineButton" type="Button" parent="Panel/HBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Mine"
+
+[node name="WallButton" type="Button" parent="Panel/HBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Wall"
+
+[node name="FloorButton" type="Button" parent="Panel/HBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Floor"
+
+[node name="DoorButton" type="Button" parent="Panel/HBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Door"

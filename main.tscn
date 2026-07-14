@@ -1,7 +1,8 @@
-[gd_scene load_steps=3 format=3 uid="uid://main0000000000000000000000001"]
+[gd_scene load_steps=4 format=3 uid="uid://main0000000000000000000000001"]
 
 [ext_resource type="Script" path="res://main.gd" id="1_main"]
 [ext_resource type="TileSet" path="res://tileset.tres" id="2_tileset"]
+[ext_resource type="PackedScene" uid="uid://buildui000000000000000000000001" path="res://build_ui.tscn" id="3_buildui"]
 
 [node name="Main" type="Node2D"]
 script = ExtResource("1_main")
@@ -9,8 +10,10 @@ script = ExtResource("1_main")
 [node name="Camera2D" type="Camera2D" parent="."]
 current = true
 position = Vector2(1024, 1024)
-zoom = Vector2(0.2, 0.2)
+zoom = Vector2(0.5, 0.5)
 
 [node name="TileMap" type="TileMap" parent="."]
 tile_set = ExtResource("2_tileset")
 format = 2
+
+[node name="BuildUI" parent="." instance=ExtResource("3_buildui")]

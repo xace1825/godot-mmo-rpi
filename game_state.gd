@@ -88,7 +88,9 @@ func complete_blueprint(pos: Vector2i) -> bool:
 	buildings[key] = bp["type"]
 	var completed_type: int = bp["type"]
 	blueprints.erase(key)
-	spawn_villagers_for_station(pos, completed_type)
+	# Only spawn workers for production stations, not walls/doors/floors
+	if completed_type < PlanetGenerator.BuildingType.WALL:
+		spawn_villagers_for_station(pos, completed_type)
 	print("Server: blueprint completed at ", key, " type ", completed_type)
 	Network.broadcast_building_completed(pos, completed_type)
 	return true

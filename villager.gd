@@ -10,6 +10,8 @@ func setup(job: String):
 			sprite.modulate = Color(0.5, 0.5, 0.55)
 		"farmer":
 			sprite.modulate = Color(0.2, 0.7, 0.3)
+		"builder":
+			sprite.modulate = Color(1.0, 0.65, 0.0)
 		_:
 			sprite.modulate = Color(1, 1, 1)
 

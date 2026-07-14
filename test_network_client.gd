@@ -9,6 +9,7 @@ var received_villagers: Dictionary = {}
 var received_resources: Dictionary = {}
 var received_blueprints: Dictionary = {}
 var received_buildings: Dictionary = {}
+var setup_done: bool = false
 
 func _ready():
     print("Headless test client starting")
@@ -32,7 +33,9 @@ func _on_sync(data: Dictionary):
     received_blueprints = data.get("blueprints", {})
     received_villagers = data.get("villagers", {})
     received_resources = data.get("resources", {"wood": 0, "food": 0, "stone": 0})
-    _run_tests(data)
+    if not setup_done:
+        setup_done = true
+        _run_tests(data)
 
 func _on_villager_sync(villagers: Dictionary):
     received_villagers = villagers
@@ -46,7 +49,6 @@ func _on_blueprint_placed(pos: Vector2i, type_id: int):
 
 func _on_building_placed(pos: Vector2i, type_id: int):
     var key = "%d,%d" % [pos.x, pos.y]
-    print("TEST: building placed event at ", pos, " type ", type_id)
     received_buildings[key] = type_id
     if received_blueprints.has(key):
         received_blueprints.erase(key)
@@ -69,12 +71,9 @@ func _run_tests(data: Dictionary):
                     best_dist = dist
                     valid_pos = pos
     
-    print("TEST: placing blueprint at ", valid_pos)
+    print("TEST: placing sawmill blueprint at ", valid_pos)
     Network.ask_build(valid_pos)
     await get_tree().create_timer(2.0).timeout
-    
-    print("TEST: blueprints = ", received_blueprints.size())
-    print("TEST: villagers = ", received_villagers.size())
     
     var key = "%d,%d" % [valid_pos.x, valid_pos.y]
     if received_blueprints.has(key):
@@ -87,17 +86,38 @@ func _run_tests(data: Dictionary):
     else:
         print("TEST FAIL: builder not spawned")
     
-    # Wait for builder to complete and workers to produce
-    await get_tree().create_timer(10.0).timeout
-    print("TEST: resources after production = ", received_resources)
-    print("TEST: buildings = ", received_buildings.size(), " keys: ", received_buildings.keys())
-    print("TEST: looking for key ", key)
-    print("TEST: villagers = ", received_villagers.size())
+    await get_tree().create_timer(2.0).timeout
     
     if received_buildings.has(key):
         print("TEST PASS: blueprint completed into building")
     else:
         print("TEST INFO: blueprint not yet completed")
+    
+    # Build walls and floors around the sawmill
+    print("TEST: placing walls and floors around sawmill")
+    var offsets: Array = [
+        Vector2i(-2, -2), Vector2i(-1, -2), Vector2i(0, -2), Vector2i(1, -2), Vector2i(2, -2),
+        Vector2i(-2, 2), Vector2i(-1, 2), Vector2i(0, 2), Vector2i(1, 2), Vector2i(2, 2),
+        Vector2i(-2, -1), Vector2i(-2, 0), Vector2i(-2, 1),
+        Vector2i(2, -1), Vector2i(2, 0), Vector2i(2, 1),
+    ]
+    for off in offsets:
+        var pos: Vector2i = valid_pos + off
+        if PlanetGenerator.is_buildable(world[pos.x][pos.y]):
+            if pos.x == valid_pos.x - 2 or pos.x == valid_pos.x + 2 or pos.y == valid_pos.y - 2 or pos.y == valid_pos.y + 2:
+                Network.ask_build(pos, PlanetGenerator.BuildingType.WALL)
+            else:
+                Network.ask_build(pos, PlanetGenerator.BuildingType.FLOOR)
+            await get_tree().create_timer(0.1).timeout
+    
+    await get_tree().create_timer(15.0).timeout
+    print("TEST: buildings after walls/floors = ", received_buildings.size())
+    print("TEST: resources = ", received_resources)
+    
+    if received_buildings.size() >= 5:
+        print("TEST PASS: walls and floors built")
+    else:
+        print("TEST INFO: walls/floors still under construction")
     
     if received_resources["wood"] > 0 or received_resources["food"] > 0 or received_resources["stone"] > 0:
         print("TEST PASS: resource production works")

@@ -43,12 +43,15 @@ func _process_builders():
 		bp["progress"] += BUILD_UNITS_PER_TICK
 		if bp["progress"] >= 1.0:
 			if GameState.complete_blueprint(pos):
-				v["job"] = PlanetGenerator.get_job_type(bp["type"])
-				v["workplace"] = {"x": pos.x, "y": pos.y}
-				v["home"] = {"x": pos.x, "y": pos.y}
+				# For production stations, builder becomes worker
+				if bp["type"] < PlanetGenerator.BuildingType.WALL:
+					v["job"] = PlanetGenerator.get_job_type(bp["type"])
+					v["workplace"] = {"x": pos.x, "y": pos.y}
+					v["home"] = {"x": pos.x, "y": pos.y}
+					v["building_type"] = bp["type"]
+				print("Server: builder ", id, " became ", v["job"], " at ", pos)
 				v["target_blueprint"] = ""
 				v["state"] = "idle"
-				print("Server: builder ", id, " became ", v["job"], " at ", pos)
 			else:
 				bp["progress"] = 0.99
 				v["state"] = "waiting_resources"

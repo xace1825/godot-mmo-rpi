@@ -2,6 +2,7 @@ extends Node2D
 
 @onready var tile_map: TileMap = $TileMap
 @onready var camera: Camera2D = $Camera2D
+@onready var build_ui: CanvasLayer = $BuildUI
 
 const TILE_SIZE: int = PlanetGenerator.TILE_SIZE
 const WORLD_SIZE: int = PlanetGenerator.WORLD_SIZE
@@ -23,11 +24,6 @@ var zoom_speed: float = 0.1
 var world_data: Array = []
 var chunk_manager: ChunkManager = null
 
-# Build mode UI
-var selected_build_type: int = -1
-var build_buttons: Array = []
-var BUILD_PANEL_HEIGHT: float = 64.0
-
 func _ready():
 	is_server = OS.has_feature("dedicated_server") or DisplayServer.get_name() == "headless"
 
@@ -42,17 +38,21 @@ func _ready():
 	else:
 		print("Starting CLIENT mode")
 		setup_client()
-		setup_build_buttons()
 		_parse_server_args()
 
-func setup_build_buttons():
-	build_buttons = [
-		{"type": PlanetGenerator.BuildingType.SAWMILL, "label": "Sawmill", "color": Color.BROWN},
-		{"type": PlanetGenerator.BuildingType.FARM, "label": "Farm", "color": Color.GREEN},
-		{"type": PlanetGenerator.BuildingType.MINE, "label": "Mine", "color": Color.GRAY},
-		{"type": PlanetGenerator.BuildingType.WALL, "label": "Wall", "color": Color.DARK_GRAY},
-		{"type": PlanetGenerator.BuildingType.FLOOR, "label": "Floor", "color": Color.LIGHT_GRAY},
-	]
+func setup_client():
+	Network.building_placed.connect(_on_building_placed)
+	Network.blueprint_placed.connect(_on_blueprint_placed)
+	Network.full_sync.connect(_on_full_sync)
+	Network.villager_sync.connect(_on_villager_sync)
+	Network.resource_sync.connect(_on_resource_sync)
+	build_ui.build_type_selected.connect(_on_build_type_selected)
+
+var selected_build_type: int = -1
+
+func _on_build_type_selected(type_id: int):
+	selected_build_type = type_id
+	print("Client selected build type: ", type_id)
 
 func _parse_server_args():
 	var server_ip = DEFAULT_SERVER_IP
@@ -94,7 +94,6 @@ func _process(delta):
 		camera_frames += 1
 	if chunk_manager:
 		chunk_manager.update(camera.global_position)
-	queue_redraw()
 
 func _handle_camera_input(delta):
 	if not camera:
@@ -121,52 +120,12 @@ func _input(event):
 		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 			camera.zoom = camera.zoom / (1.0 + zoom_speed)
 		elif event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
-			var mouse_pos := get_global_mouse_position()
-			var button_index := _get_build_button_at(mouse_pos)
-			if button_index >= 0:
-				selected_build_type = build_buttons[button_index]["type"]
-				print("Client selected build type: ", selected_build_type)
-				return
 			var tile := tile_map.local_to_map(tile_map.get_local_mouse_position())
 			if tile.x >= 0 and tile.x < WORLD_SIZE and tile.y >= 0 and tile.y < WORLD_SIZE:
 				print("Client clicked tile: ", tile, " type: ", selected_build_type)
 				Network.ask_build(tile, selected_build_type)
 	elif event is InputEventKey and event.pressed and event.keycode == KEY_SPACE:
 		camera.position = Vector2(WORLD_SIZE * TILE_SIZE / 2, WORLD_SIZE * TILE_SIZE / 2)
-
-func _get_build_button_at(mouse_pos: Vector2) -> int:
-	var viewport_size := get_viewport_rect().size
-	var panel_y := viewport_size.y - BUILD_PANEL_HEIGHT
-	if mouse_pos.y < panel_y:
-		return -1
-	var button_width := viewport_size.x / build_buttons.size()
-	var index := int(mouse_pos.x / button_width)
-	if index >= 0 and index < build_buttons.size():
-		return index
-	return -1
-
-func _draw():
-	if is_server or build_buttons.is_empty():
-		return
-	var viewport_size := get_viewport_rect().size
-	var panel_y := viewport_size.y - BUILD_PANEL_HEIGHT
-	draw_rect(Rect2(0, panel_y, viewport_size.x, BUILD_PANEL_HEIGHT), Color(0.1, 0.1, 0.1, 0.8))
-	var button_width := viewport_size.x / build_buttons.size()
-	for i in range(build_buttons.size()):
-		var btn: Dictionary = build_buttons[i]
-		var rect := Rect2(i * button_width, panel_y, button_width, BUILD_PANEL_HEIGHT)
-		var color: Color = btn["color"]
-		if selected_build_type == btn["type"]:
-			color = Color.YELLOW
-		draw_rect(rect, color)
-		draw_string(ThemeDB.fallback_font, Vector2(rect.position.x + 10, rect.position.y + 40), btn["label"], HORIZONTAL_ALIGNMENT_CENTER, -1, 16, Color.BLACK)
-
-func setup_client():
-	Network.building_placed.connect(_on_building_placed)
-	Network.blueprint_placed.connect(_on_blueprint_placed)
-	Network.full_sync.connect(_on_full_sync)
-	Network.villager_sync.connect(_on_villager_sync)
-	Network.resource_sync.connect(_on_resource_sync)
 
 func _on_blueprint_placed(pos: Vector2i, type_id: int):
 	if client_blueprints.has(pos) or client_buildings.has(pos):
