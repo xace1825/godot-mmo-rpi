@@ -61,13 +61,29 @@ func place_building(pos: Vector2i, type_id: int):
 func place_blueprint(pos: Vector2i, type_id: int):
 	blueprint_placed.emit(pos, type_id)
 
+func _is_peer_connected() -> bool:
+	if not multiplayer.has_multiplayer_peer():
+		return false
+	var p := multiplayer.multiplayer_peer
+	if p == null:
+		return false
+	if p is ENetMultiplayerPeer:
+		return p.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED
+	return true
+
 func ask_build(tile_pos: Vector2i, building_type: int = -1):
 	if multiplayer.is_server():
+		return
+	if not _is_peer_connected():
+		push_warning("Cannot ask_build: peer not connected")
 		return
 	rpc_id(1, "request_build", tile_pos, building_type)
 
 func ask_stockpile(topleft: Vector2i, size: Vector2i):
 	if multiplayer.is_server():
+		return
+	if not _is_peer_connected():
+		push_warning("Cannot ask_stockpile: peer not connected")
 		return
 	rpc_id(1, "request_stockpile", topleft, size)
 

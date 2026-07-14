@@ -9,6 +9,8 @@ const WORLD_SIZE: int = PlanetGenerator.WORLD_SIZE
 
 const DEFAULT_SERVER_IP: String = "192.168.0.102"
 const DEFAULT_SERVER_PORT: int = 7777
+const RECONNECT_DELAY: float = 3.0
+const MAX_RECONNECT_ATTEMPTS: int = 10
 
 var building_scene = preload("res://building.tscn")
 var blueprint_scene = preload("res://building.tscn")
@@ -24,6 +26,9 @@ var camera_speed: float = 1200.0
 var zoom_speed: float = 0.1
 var world_data: Array = []
 var chunk_manager: ChunkManager = null
+var reconnect_attempts: int = 0
+var target_server_ip: String = ""
+var target_server_port: int = 7777
 
 # Stockpile drag selection
 var is_dragging_stockpile: bool = false
@@ -63,6 +68,7 @@ func _parse_server_args():
 	var server_ip = DEFAULT_SERVER_IP
 	var server_port = DEFAULT_SERVER_PORT
 	var args = OS.get_cmdline_args()
+	print("[CLIENT] raw cmdline args: ", args)
 	var positional: Array = []
 	var i = 0
 	while i < args.size():
@@ -83,8 +89,39 @@ func _parse_server_args():
 		server_ip = positional[0]
 	if positional.size() >= 2:
 		server_port = int(positional[1])
-	print("Connecting to server ", server_ip, ":", server_port)
-	Network.start_client(server_ip, server_port)
+	target_server_ip = server_ip
+	target_server_port = server_port
+	print("[CLIENT] parsed server ", target_server_ip, ":", target_server_port)
+	multiplayer.connected_to_server.connect(_on_client_connected)
+	multiplayer.connection_failed.connect(_on_client_connection_failed)
+	multiplayer.server_disconnected.connect(_on_client_disconnected)
+	_start_client_connection()
+
+func _start_client_connection():
+	reconnect_attempts += 1
+	print("[CLIENT] connection attempt ", reconnect_attempts, "/", MAX_RECONNECT_ATTEMPTS, " to ", target_server_ip, ":", target_server_port)
+	if not Network.start_client(target_server_ip, target_server_port):
+		_on_client_connection_failed()
+
+func _on_client_connected():
+	reconnect_attempts = 0
+	print("[CLIENT] connected to server, peer id: ", multiplayer.get_unique_id())
+
+func _on_client_connection_failed():
+	print("[CLIENT] connection failed to ", target_server_ip, ":", target_server_port, " attempt ", reconnect_attempts)
+	_schedule_reconnect()
+
+func _on_client_disconnected():
+	print("[CLIENT] disconnected from server")
+	_schedule_reconnect()
+
+func _schedule_reconnect():
+	if reconnect_attempts >= MAX_RECONNECT_ATTEMPTS:
+		print("[CLIENT] giving up after ", reconnect_attempts, " attempts")
+		return
+	print("[CLIENT] retrying in ", RECONNECT_DELAY, " seconds...")
+	await get_tree().create_timer(RECONNECT_DELAY).timeout
+	_start_client_connection()
 
 func _process(delta):
 	if is_server:
