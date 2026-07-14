@@ -105,10 +105,15 @@ func setup_client():
 	Network.full_sync.connect(_on_full_sync)
 
 func render_world(world: Array):
+	print("Rendering world ", WORLD_SIZE, "x", WORLD_SIZE)
+	var count := 0
 	for x in range(WORLD_SIZE):
 		for y in range(WORLD_SIZE):
 			var type := world[x][y] as int
 			tile_map.set_cell(0, Vector2i(x, y), 0, PlanetGenerator.tile_to_atlas_coords(type))
+			count += 1
+	print("Rendered ", count, " tiles")
+	tile_map.queue_redraw()
 
 func _on_building_placed(pos: Vector2i, type_id: int):
 	if client_buildings.has(pos):

@@ -111,7 +111,7 @@ static func tile_to_atlas_coords(type: int) -> Vector2i:
 
 static func is_buildable(type: int) -> bool:
 	match type:
-		TileType.DEEP_OCEAN, TileType.OCEAN, TileType.SHORE, TileType.PEAK:
+		TileType.DEEP_OCEAN, TileType.OCEAN, TileType.SHORE, TileType.HILLS, TileType.MOUNTAIN, TileType.PEAK, TileType.SNOW:
 			return false
 		_:
 			return true
