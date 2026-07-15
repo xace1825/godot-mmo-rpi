@@ -209,18 +209,26 @@ func complete_blueprint(pos: Vector2i) -> bool:
 		return false
 	var bp: Dictionary = blueprints[key]
 	var cost: Dictionary = bp["cost"]
-	# Try to consume resources from nearest stockpile
-	var stock_id: String = find_nearest_stockpile(pos)
-	if stock_id == "":
-		print("Server: no stockpile available to complete blueprint ", key)
-		return false
-	var stock: Dictionary = stockpiles[stock_id]
+	var already_paid: bool = true
 	for res: String in cost:
-		if stock["resources"][res] < cost[res]:
-			print("Server: stockpile ", stock_id, " lacks ", res, " for blueprint ", key)
+		if bp["paid"].get(res, 0) < cost[res]:
+			already_paid = false
+			break
+	
+	if not already_paid:
+		var stock_id: String = find_nearest_stockpile(pos)
+		if stock_id == "":
+			print("Server: no stockpile available to complete blueprint ", key)
 			return false
-	for res: String in cost:
-		stock["resources"][res] -= cost[res]
+		var stock: Dictionary = stockpiles[stock_id]
+		for res: String in cost:
+			if stock["resources"][res] < cost[res]:
+				print("Server: stockpile ", stock_id, " lacks ", res, " for blueprint ", key)
+				return false
+		for res: String in cost:
+			stock["resources"][res] -= cost[res]
+			bp["paid"][res] = cost[res]
+	
 	buildings[key] = bp["type"]
 	var completed_type: int = bp["type"]
 	blueprints.erase(key)
@@ -228,7 +236,7 @@ func complete_blueprint(pos: Vector2i) -> bool:
 	# Only spawn workers for production stations, not walls/doors/floors/stockpiles
 	if completed_type < PlanetGenerator.BuildingType.WALL:
 		spawn_villagers_for_station(pos, completed_type)
-	print("Server: blueprint completed at ", key, " type ", completed_type, " using stockpile ", stock_id)
+	print("Server: blueprint completed at ", key, " type ", completed_type)
 	recalculate_rooms()
 	Network.broadcast_building_completed(pos, completed_type)
 	return true
@@ -244,8 +252,15 @@ func pay_blueprint_cost(pos: Vector2i) -> bool:
 		return false
 	var stock: Dictionary = stockpiles[stock_id]
 	for res: String in cost:
-		if stock["resources"][res] < cost[res]:
+		if stock["resources"][res] < cost[res] - bp["paid"].get(res, 0):
 			return false
+	for res: String in cost:
+		var needed: int = cost[res] - bp["paid"].get(res, 0)
+		if needed > 0:
+			stock["resources"][res] -= needed
+			bp["paid"][res] = bp["paid"].get(res, 0) + needed
+	_recalc_total_resources()
+	print("Server: blueprint ", key, " paid, remaining stockpile resources: ", stock["resources"])
 	return true
 
 func add_building(pos: Vector2i, type_id: int = -1) -> int:
