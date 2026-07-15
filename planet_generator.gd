@@ -182,17 +182,21 @@ static func get_resource_for_building(building_type: int) -> String:
 	return get_resource_for_job(get_job_type(building_type))
 
 static func building_type_to_rect(type: int) -> Rect2:
-	if type < 3:
-		return Rect2(type * 64, 0, 64, 64)
 	match type:
+		BuildingType.SAWMILL:
+			return Rect2(0, 0, 64, 64)
+		BuildingType.FARM:
+			return Rect2(64, 0, 64, 64)
+		BuildingType.MINE:
+			return Rect2(128, 0, 64, 64)
 		BuildingType.WALL:
-			return Rect2(0, 64, 32, 32)
+			return Rect2(0, 64, 64, 64)
 		BuildingType.DOOR:
-			return Rect2(32, 64, 32, 32)
-		BuildingType.FLOOR:
-			return Rect2(64, 64, 32, 32)
+			return Rect2(64, 64, 64, 64)
+		BuildingType.FLOOR, BuildingType.STOCKPILE:
+			return Rect2(128, 64, 64, 64)
 		_:
-			return Rect2(96, 64, 32, 32)
+			return Rect2(0, 0, 64, 64)
 
 static func get_chunk_coords(x: int, y: int) -> Vector2i:
 	return Vector2i(floor(float(x) / CHUNK_SIZE), floor(y / float(CHUNK_SIZE)))
