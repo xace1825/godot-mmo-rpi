@@ -233,6 +233,21 @@ func complete_blueprint(pos: Vector2i) -> bool:
 	Network.broadcast_building_completed(pos, completed_type)
 	return true
 
+func pay_blueprint_cost(pos: Vector2i) -> bool:
+	var key: String = _pos_key(pos)
+	if not blueprints.has(key):
+		return false
+	var bp: Dictionary = blueprints[key]
+	var cost: Dictionary = bp.get("cost", {})
+	var stock_id: String = find_nearest_stockpile(pos)
+	if stock_id == "":
+		return false
+	var stock: Dictionary = stockpiles[stock_id]
+	for res: String in cost:
+		if stock["resources"][res] < cost[res]:
+			return false
+	return true
+
 func add_building(pos: Vector2i, type_id: int = -1) -> int:
 	return add_blueprint(pos, type_id)
 
