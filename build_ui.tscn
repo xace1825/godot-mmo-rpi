@@ -61,3 +61,8 @@ text = "Door"
 layout_mode = 2
 size_flags_horizontal = 3
 text = "Stockpile"
+
+[node name="ResetButton" type="Button" parent="Panel/HBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "RESET"

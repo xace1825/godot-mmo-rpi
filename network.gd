@@ -6,6 +6,7 @@ signal resource_sync(resources: Dictionary)
 signal blueprint_placed(pos: Vector2i, type_id: int)
 signal building_placed(pos: Vector2i, type_id: int)
 signal stockpile_added(id: String, data: Dictionary)
+signal world_reset(data: Dictionary)
 
 const DEFAULT_PORT: int = 7777
 
@@ -126,6 +127,27 @@ func broadcast_building_completed(pos: Vector2i, type_id: int):
 	if multiplayer.has_multiplayer_peer():
 		rpc("place_building", pos, type_id)
 		_broadcast_state()
+
+func ask_reset_world():
+	if multiplayer.is_server():
+		return
+	if not _is_peer_connected():
+		push_warning("Cannot ask_reset_world: peer not connected")
+		return
+	rpc_id(1, "request_reset_world")
+
+@rpc("any_peer", "call_remote", "reliable")
+func request_reset_world():
+	if not multiplayer.is_server():
+		return
+	print("Server: reset world requested by peer ", multiplayer.get_remote_sender_id())
+	GameState.reset_world()
+	if multiplayer.has_multiplayer_peer():
+		rpc("sync_world_reset", GameState.get_world_data())
+
+@rpc("authority", "call_remote", "reliable")
+func sync_world_reset(data: Dictionary):
+	world_reset.emit(data)
 
 func broadcast_stockpile_added(id: String, data: Dictionary):
 	if multiplayer.has_multiplayer_peer():

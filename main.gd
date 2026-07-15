@@ -56,7 +56,9 @@ func setup_client():
 	Network.full_sync.connect(_on_full_sync)
 	Network.villager_sync.connect(_on_villager_sync)
 	Network.resource_sync.connect(_on_resource_sync)
+	Network.world_reset.connect(_on_world_reset)
 	build_ui.build_type_selected.connect(_on_build_type_selected)
+	build_ui.reset_requested.connect(_on_reset_requested)
 
 var selected_build_type: int = -1
 
@@ -295,6 +297,38 @@ func _on_villager_sync(villagers: Dictionary):
 			add_child(node)
 			node.setup(job)
 			client_villagers[id] = node
+
+func _on_reset_requested():
+	print("Client: requesting world reset")
+	Network.ask_reset_world()
+
+func _on_world_reset(data: Dictionary):
+	print("Client: world reset received, clearing local state")
+	# Clear local buildings
+	for pos in client_buildings:
+		if is_instance_valid(client_buildings[pos]):
+			client_buildings[pos].queue_free()
+	client_buildings.clear()
+	# Clear local blueprints
+	for pos in client_blueprints:
+		if is_instance_valid(client_blueprints[pos]):
+			client_blueprints[pos].queue_free()
+	client_blueprints.clear()
+	# Clear local stockpile overlays
+	for id in client_stockpiles:
+		for marker in client_stockpiles[id]:
+			if is_instance_valid(marker):
+				marker.queue_free()
+	client_stockpiles.clear()
+	# Clear villagers
+	for id in client_villagers:
+		if is_instance_valid(client_villagers[id]):
+			client_villagers[id].queue_free()
+	client_villagers.clear()
+	# Reset resources display
+	client_resources = {"wood": 0, "food": 0, "stone": 0}
+	# Re-apply sync
+	_on_full_sync(data)
 
 func _on_resource_sync(resources: Dictionary):
 	client_resources = resources.duplicate()

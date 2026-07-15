@@ -176,7 +176,7 @@ func add_stockpile(topleft: Vector2i, size: Vector2i) -> bool:
 	}
 	# Starting resources go to the first stockpile so construction can happen
 	if is_first_stockpile:
-		stockpiles[stock_id]["resources"] = {"wood": 50, "stone": 50, "food": 50}
+		stockpiles[stock_id]["resources"] = {"wood": 500, "stone": 500, "food": 500}
 		print("Server: placed starting resources into first stockpile ", stock_id)
 	_recalc_total_resources()
 	print("Server: added stockpile ", stock_id, " with ", zone.size(), " tiles")
@@ -343,6 +343,19 @@ func save_world():
 		"resources": resources,
 		"villagers": villagers,
 		"next_villager_id": next_villager_id
-	}, "\t"))
+	}, "	"))
 	file.close()
 	print("Server: world saved")
+
+func reset_world():
+	buildings.clear()
+	blueprints.clear()
+	stockpiles.clear()
+	rooms.clear()
+	room_station_status.clear()
+	villagers.clear()
+	next_villager_id = 1
+	resources = {"wood": 0, "food": 0, "stone": 0}
+	if FileAccess.file_exists(SAVE_PATH):
+		DirAccess.remove_absolute(SAVE_PATH)
+	print("Server: world reset, save cleared")

@@ -1,6 +1,7 @@
 extends CanvasLayer
 
 signal build_type_selected(type_id: int)
+signal reset_requested()
 
 @onready var panel: Panel = $Panel
 @onready var container: HBoxContainer = $Panel/HBoxContainer
@@ -52,6 +53,10 @@ func _button_text(button: Button) -> String:
 	return "%s\n%s" % [icon, button.name.replace("Button", "")]
 
 func _on_button_pressed(button: Button):
+	if button.name == "ResetButton":
+		print("BuildUI: reset requested")
+		reset_requested.emit()
+		return
 	var type_id = TYPE_MAP.get(button.name, -1)
 	selected_type = type_id
 	build_type_selected.emit(type_id)
