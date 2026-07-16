@@ -159,7 +159,12 @@ func _handle_camera_input(delta):
 func _unhandled_input(event):
 	if is_server:
 		return
+	# Ignore clicks that hit the UI
 	if event is InputEventMouseButton:
+		var hovered = get_viewport().gui_get_hovered_control()
+		if hovered != null:
+			print("[CLIENT] click over UI control ", hovered.name, " — ignoring for world input")
+			return
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
 			camera.zoom = camera.zoom * (1.0 + zoom_speed)
 		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
@@ -210,19 +215,6 @@ func _draw():
 		draw_rect(Rect2(rect_pos, rect_size), Color(0.9, 0.8, 0.3, 0.4), true)
 		draw_rect(Rect2(rect_pos, rect_size), Color(0.9, 0.8, 0.3, 0.8), false, 2.0)
 
-func _on_blueprint_placed(pos: Vector2i, type_id: int):
-	if client_blueprints.has(pos) or client_buildings.has(pos):
-		return
-	var b = blueprint_scene.instantiate()
-	b.position = Vector2(pos.x * TILE_SIZE + TILE_SIZE / 2, pos.y * TILE_SIZE + TILE_SIZE / 2)
-	var sprite := b.get_node("Sprite") as Sprite2D
-	if sprite:
-		sprite.region_rect = PlanetGenerator.building_type_to_rect(type_id)
-		sprite.modulate = Color(1, 1, 1, 0.5)
-	add_child(b)
-	client_blueprints[pos] = b
-	print("Client placed blueprint at ", pos, " type ", type_id)
-
 func _on_building_placed(pos: Vector2i, type_id: int):
 	if client_buildings.has(pos):
 		return
@@ -236,32 +228,60 @@ func _on_building_placed(pos: Vector2i, type_id: int):
 	if sprite:
 		sprite.region_rect = PlanetGenerator.building_type_to_rect(type_id)
 		sprite.modulate = Color(1, 1, 1, 1)
+	b.scale = Vector2.ZERO
 	add_child(b)
 	client_buildings[pos] = b
 	print("Client placed building at ", pos, " type ", type_id)
+	var tween = create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tween.tween_property(b, "scale", Vector2.ONE, 0.35)
+
+func _on_blueprint_placed(pos: Vector2i, type_id: int):
+	if client_blueprints.has(pos) or client_buildings.has(pos):
+		return
+	var b = blueprint_scene.instantiate()
+	b.position = Vector2(pos.x * TILE_SIZE + TILE_SIZE / 2, pos.y * TILE_SIZE + TILE_SIZE / 2)
+	var sprite := b.get_node("Sprite") as Sprite2D
+	if sprite:
+		sprite.region_rect = PlanetGenerator.building_type_to_rect(type_id)
+		sprite.modulate = Color(1, 1, 1, 0.5)
+	b.scale = Vector2.ZERO
+	add_child(b)
+	client_blueprints[pos] = b
+	print("Client placed blueprint at ", pos, " type ", type_id)
+	var tween = create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tween.tween_property(b, "scale", Vector2.ONE, 0.25)
 
 var camera_initialized: bool = false
+var camera_target_position: Vector2 = Vector2.ZERO
 
 func _on_full_sync(data: Dictionary):
 	print("Client received full sync with ", data["buildings"].size(), " buildings, ", data.get("blueprints", {}).size(), " blueprints, ", data.get("stockpiles", {}).size(), " stockpiles")
 	var seed_value := data.get("seed", 12345) as int
 	world_data = PlanetGenerator.generate_world(seed_value)
 	chunk_manager = ChunkManager.new(tile_map, world_data)
-	var first_building_pos := Vector2i(-1, -1)
 	for pos_str in data["buildings"]:
 		var parts: PackedStringArray = pos_str.split(",")
 		var pos = Vector2i(int(parts[0]), int(parts[1]))
 		_on_building_placed(pos, data["buildings"][pos_str])
-		if first_building_pos.x < 0:
-			first_building_pos = pos
 	for pos_str in data.get("blueprints", {}):
 		var parts: PackedStringArray = pos_str.split(",")
 		var pos = Vector2i(int(parts[0]), int(parts[1]))
 		_on_blueprint_placed(pos, data["blueprints"][pos_str]["type"])
 	for stock_id in data.get("stockpiles", {}):
 		_on_stockpile_added(stock_id, data["stockpiles"][stock_id])
-	if not camera_initialized and first_building_pos.x >= 0 and camera:
-		var target := Vector2(first_building_pos.x * TILE_SIZE + TILE_SIZE / 2, first_building_pos.y * TILE_SIZE + TILE_SIZE / 2)
+	
+	# Initialize camera once, focused on the first stockpile or world center
+	if not camera_initialized and camera:
+		var first_stock_pos: Vector2i = Vector2i(-1, -1)
+		for stock_id in data.get("stockpiles", {}):
+			var sdata = data["stockpiles"][stock_id]
+			first_stock_pos = Vector2i(int(sdata["topleft"]["x"]), int(sdata["topleft"]["y"]))
+			break
+		var target: Vector2
+		if first_stock_pos.x >= 0:
+			target = Vector2(first_stock_pos.x * TILE_SIZE + TILE_SIZE / 2, first_stock_pos.y * TILE_SIZE + TILE_SIZE / 2)
+		else:
+			target = Vector2(WORLD_SIZE * TILE_SIZE / 2, WORLD_SIZE * TILE_SIZE / 2)
 		camera.global_position = target
 		camera.position = target
 		camera.offset = Vector2.ZERO
@@ -269,6 +289,7 @@ func _on_full_sync(data: Dictionary):
 		camera.force_update_scroll()
 		camera.reset_smoothing()
 		camera_frames = 999
+		camera_target_position = target
 		chunk_manager.update(target)
 		camera_initialized = true
 	else:
@@ -276,48 +297,10 @@ func _on_full_sync(data: Dictionary):
 	_on_villager_sync(data.get("villagers", {}))
 	_on_resource_sync(data.get("resources", {"wood": 0, "food": 0, "stone": 0}))
 
-func _on_stockpile_added(id: String, data: Dictionary):
-	print("Client: stockpile added ", id)
-	# Draw a semi-transparent yellow overlay over each tile
-	for key in data.get("zone", []):
-		var parts: PackedStringArray = key.split(",")
-		var pos := Vector2i(int(parts[0]), int(parts[1]))
-		var marker := ColorRect.new()
-		marker.position = Vector2(pos.x * TILE_SIZE + 1, pos.y * TILE_SIZE + 1)
-		marker.size = Vector2(TILE_SIZE - 2, TILE_SIZE - 2)
-		marker.color = Color(0.9, 0.8, 0.3, 0.25)
-		marker.z_index = 1
-		add_child(marker)
-		if not client_stockpiles.has(id):
-			client_stockpiles[id] = []
-		client_stockpiles[id].append(marker)
-
-func _on_villager_sync(villagers: Dictionary):
-	for id in villagers:
-		var v = villagers[id] as Dictionary
-		var pos := Vector2i(int(v["pos"]["x"]), int(v["pos"]["y"]))
-		var job := v["job"] as String
-		if client_villagers.has(id):
-			var node = client_villagers[id]
-			node.position = Vector2(pos.x * TILE_SIZE + TILE_SIZE / 2, pos.y * TILE_SIZE + TILE_SIZE / 2)
-			node.setup(job)
-		else:
-			var node = villager_scene.instantiate()
-			node.position = Vector2(pos.x * TILE_SIZE + TILE_SIZE / 2, pos.y * TILE_SIZE + TILE_SIZE / 2)
-			add_child(node)
-			node.setup(job)
-			client_villagers[id] = node
-
-func _on_reset_requested():
-	print("Client: requesting world reset")
-	Network.ask_reset_world()
-
-func _on_spawn_requested():
-	print("Client: requesting villager spawn")
-	Network.ask_spawn_villager()
-
 func _on_world_reset(data: Dictionary):
 	print("Client: world reset received, clearing local state")
+	camera_initialized = false
+	camera_target_position = Vector2.ZERO
 	# Clear local buildings
 	for pos in client_buildings:
 		if is_instance_valid(client_buildings[pos]):
@@ -347,3 +330,44 @@ func _on_world_reset(data: Dictionary):
 func _on_resource_sync(resources: Dictionary):
 	client_resources = resources.duplicate()
 	print("Client resources: wood=", client_resources.get("wood", 0), " food=", client_resources.get("food", 0), " stone=", client_resources.get("stone", 0))
+
+func _on_stockpile_added(id: String, data: Dictionary):
+	print("Client: stockpile added ", id)
+	# Draw a semi-transparent yellow overlay over each tile
+	for key in data.get("zone", []):
+		var parts: PackedStringArray = key.split(",")
+		var pos := Vector2i(int(parts[0]), int(parts[1]))
+		var marker := ColorRect.new()
+		marker.position = Vector2(pos.x * TILE_SIZE + 1, pos.y * TILE_SIZE + 1)
+		marker.size = Vector2(TILE_SIZE - 2, TILE_SIZE - 2)
+		marker.color = Color(0.9, 0.8, 0.3, 0.25)
+		marker.z_index = 1
+		add_child(marker)
+		if not client_stockpiles.has(id):
+			client_stockpiles[id] = []
+		client_stockpiles[id].append(marker)
+
+func _on_villager_sync(villagers: Dictionary):
+	for id in villagers:
+		var v = villagers[id] as Dictionary
+		var pos := Vector2i(int(v["pos"]["x"]), int(v["pos"]["y"]))
+		var job := v["job"] as String
+		var target := Vector2(pos.x * TILE_SIZE + TILE_SIZE / 2, pos.y * TILE_SIZE + TILE_SIZE / 2)
+		if client_villagers.has(id):
+			var node = client_villagers[id]
+			node.set_next_position(target)
+			node.setup(job)
+		else:
+			var node = villager_scene.instantiate()
+			node.position = target
+			add_child(node)
+			node.setup(job)
+			client_villagers[id] = node
+
+func _on_reset_requested():
+	print("Client: requesting world reset")
+	Network.ask_reset_world()
+
+func _on_spawn_requested():
+	print("Client: requesting villager spawn")
+	Network.ask_spawn_villager()

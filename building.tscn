@@ -5,6 +5,13 @@
 [node name="Building" type="Node2D"]
 z_index = 1
 
+[node name="Shadow" type="Sprite2D" parent="."]
+modulate = Color(0, 0, 0, 0.25)
+position = Vector2(2, 4)
+texture = ExtResource("1_bldg")
+region_enabled = true
+region_rect = Rect2(0, 0, 64, 64)
+
 [node name="Sprite" type="Sprite2D" parent="."]
 texture = ExtResource("1_bldg")
 region_enabled = true

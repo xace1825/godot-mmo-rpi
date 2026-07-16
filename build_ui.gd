@@ -40,12 +40,15 @@ const TYPE_COLORS := {
 }
 
 func _ready():
+	panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	container.mouse_filter = Control.MOUSE_FILTER_STOP
 	for child in container.get_children():
 		if child is Button:
 			child.pressed.connect(_on_button_pressed.bind(child))
 			child.text = _button_text(child)
 			child.add_theme_font_size_override("font_size", 16)
 			child.set_meta("type_id", TYPE_MAP.get(child.name, -1))
+			child.mouse_filter = Control.MOUSE_FILTER_STOP
 	_highlight_default()
 
 func _button_text(button: Button) -> String:
