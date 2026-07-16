@@ -38,6 +38,7 @@ func _on_peer_connected(id: int):
 		print("JobManager enabled for server")
 
 func _tick():
+	_assign_idle_villagers()
 	_process_builders()
 	_process_workers()
 	Network.broadcast_resource_sync()
@@ -57,6 +58,55 @@ func _update_villager_movement(delta: float):
 			var to := Vector2(float(v["to_pos"]["x"]), float(v["to_pos"]["y"]))
 			var interp := from.lerp(to, v["move_progress"])
 			v["pos"] = {"x": interp.x, "y": interp.y}
+
+func _assign_idle_villagers():
+	for id in GameState.villagers:
+		var v = GameState.villagers[id] as Dictionary
+		if v["job"] != "idle":
+			continue
+		var bp_key := _find_blueprint()
+		if bp_key != "":
+			var bp = GameState.blueprints[bp_key] as Dictionary
+			var pos = Vector2i(int(bp["pos"]["x"]), int(bp["pos"]["y"]))
+			v["job"] = "builder"
+			v["target_blueprint"] = bp_key
+			v["state"] = "moving_to_blueprint"
+			v["workplace"] = {"x": pos.x, "y": pos.y}
+			print("Server: idle villager ", id, " assigned as builder for ", bp_key)
+			continue
+		var station_pos := _find_station_without_worker()
+		if station_pos != Vector2i(-1, -1):
+			var key: String = _pos_key(station_pos)
+			var station_type: int = GameState.buildings[key]
+			var job := PlanetGenerator.get_job_type(station_type)
+			if job != "":
+				v["job"] = job
+				v["workplace"] = {"x": station_pos.x, "y": station_pos.y}
+				v["state"] = "moving_to_work"
+				print("Server: idle villager ", id, " assigned as ", job, " at ", station_pos)
+
+func _find_station_without_worker() -> Vector2i:
+	for key: String in GameState.buildings:
+		var type_id: int = GameState.buildings[key]
+		if not PlanetGenerator.is_station(type_id):
+			continue
+		var job_type := PlanetGenerator.get_job_type(type_id)
+		if job_type == "":
+			continue
+		var slots: int = PlanetGenerator.get_job_slots(type_id)
+		var current: int = 0
+		for vid in GameState.villagers:
+			var v = GameState.villagers[vid] as Dictionary
+			var wp = v.get("workplace", {})
+			if v["job"] == job_type and wp.get("x", -1) == int(key.split(",")[0]) and wp.get("y", -1) == int(key.split(",")[1]):
+				current += 1
+		if current < slots:
+			var parts := key.split(",")
+			return Vector2i(int(parts[0]), int(parts[1]))
+	return Vector2i(-1, -1)
+
+func _pos_key(pos: Vector2i) -> String:
+	return "%d,%d" % [pos.x, pos.y]
 
 func _process_builders():
 	for id in GameState.villagers:

@@ -104,7 +104,8 @@ func request_build(tile_pos: Vector2i, building_type: int = -1):
 	print("Server: build request from ", peer_id, " at ", tile_pos, " type ", building_type)
 	var type_id := GameState.add_blueprint(tile_pos, building_type)
 	if type_id >= 0:
-		GameState.spawn_builder_for_blueprint(tile_pos)
+		# Disabled: builders are spawned manually via SPAWN button
+		# GameState.spawn_builder_for_blueprint(tile_pos)
 		rpc("place_blueprint", tile_pos, type_id)
 		_broadcast_state()
 
@@ -150,7 +151,14 @@ func request_spawn_villager():
 		return
 	var peer_id := multiplayer.get_remote_sender_id()
 	print("Server: spawn villager requested by peer ", peer_id)
+	# Spawn at the center of the nearest non-empty stockpile so they visibly walk to work
 	var pos := GameState.random_walkable_tile()
+	var stock_id := GameState.find_nearest_stockpile(pos)
+	if stock_id != "":
+		var stock: Dictionary = GameState.stockpiles[stock_id]
+		var tl := Vector2i(int(stock["topleft"]["x"]), int(stock["topleft"]["y"]))
+		var br := tl + Vector2i(int(stock["size"]["x"]), int(stock["size"]["y"])) - Vector2i(1, 1)
+		pos = Vector2i((tl.x + br.x) / 2, (tl.y + br.y) / 2)
 	var id := GameState.spawn_villager(pos, "idle")
 	if id >= 0:
 		print("Server: spawned villager ", id, " at ", pos, " for peer ", peer_id)
