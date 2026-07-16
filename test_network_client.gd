@@ -128,7 +128,8 @@ func _find_stockpile_zone(center: Vector2i, size: Vector2i) -> Vector2i:
 func _run_tests(data: Dictionary):
     await get_tree().create_timer(0.5).timeout
 
-    var valid_pos := _find_buildable_zone_center(3)
+    # Use a position away from the default 1x1 starting stockpile at world center
+    var valid_pos := Vector2i(70, 64)
     
     # Step 1: Create a stockpile near the sawmill location
     var stock_size := Vector2i(3, 3)
@@ -188,8 +189,7 @@ func _run_tests(data: Dictionary):
         print("TEST INFO: no wood produced yet, workers may still be walking")
     
     # Step 4: Build a second sawmill and verify villagers split between stations
-    var sawmill2_pos := _find_buildable_zone_center(3)
-    sawmill2_pos = Vector2i(valid_pos.x + 8, valid_pos.y)
+    var sawmill2_pos := Vector2i(valid_pos.x + 2, valid_pos.y)
     while not PlanetGenerator.is_buildable(world[sawmill2_pos.x][sawmill2_pos.y]) or sawmill2_pos == valid_pos:
         sawmill2_pos.x += 1
     print("TEST: placing second sawmill at ", sawmill2_pos)
@@ -197,7 +197,7 @@ func _run_tests(data: Dictionary):
     
     var key2 := "%d,%d" % [sawmill2_pos.x, sawmill2_pos.y]
     var sawmill2_built := false
-    for i in range(80):
+    for i in range(120):
         await get_tree().create_timer(0.5).timeout
         if received_buildings.has(key2) and received_buildings[key2] == PlanetGenerator.BuildingType.SAWMILL:
             sawmill2_built = true

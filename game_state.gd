@@ -32,6 +32,14 @@ func can_build_at(pos: Vector2i) -> bool:
 	var type := get_tile_type(pos)
 	return PlanetGenerator.is_buildable(type)
 
+func is_walkable(pos: Vector2i) -> bool:
+	if not PlanetGenerator.is_walkable_tile(get_tile_type(pos)):
+		return false
+	var key: String = _pos_key(pos)
+	if buildings.has(key):
+		return PlanetGenerator.is_walkable_building(buildings[key])
+	return true
+
 func get_room_at(pos: Vector2i) -> int:
 	var key: String = _pos_key(pos)
 	for i in range(rooms.size()):
@@ -459,15 +467,7 @@ func create_default_stockpile() -> bool:
 				if abs(dx) != radius and abs(dy) != radius:
 					continue
 				var pos := Vector2i(half + dx, half + dy)
-				var ok := true
-				for sy in range(3):
-					for sx in range(3):
-						if not can_build_at(pos + Vector2i(sx, sy)):
-							ok = false
-							break
-					if not ok:
-						break
-				if ok and add_stockpile(pos, Vector2i(3, 3)):
+				if can_build_at(pos) and add_stockpile(pos, Vector2i(1, 1)):
 					return true
 	return false
 

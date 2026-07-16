@@ -120,6 +120,49 @@ static func is_buildable(type: int) -> bool:
 		_:
 			return true
 
+static func is_walkable_tile(tile_type: int) -> bool:
+	match tile_type:
+		TileType.DEEP_OCEAN, TileType.OCEAN:
+			return false
+		_:
+			return true
+
+static func is_walkable_building(building_type: int) -> bool:
+	match building_type:
+		BuildingType.WALL:
+			return false
+		_:
+			return true
+
+enum BuildCategory {
+	STRUCTURES,
+	PRODUCTION,
+	LOGISTICS,
+	BASIC
+}
+
+static func get_building_category(building_type: int) -> int:
+	match building_type:
+		BuildingType.WALL, BuildingType.DOOR, BuildingType.FLOOR:
+			return BuildCategory.STRUCTURES
+		BuildingType.SAWMILL, BuildingType.FARM, BuildingType.MINE:
+			return BuildCategory.PRODUCTION
+		BuildingType.STOCKPILE:
+			return BuildCategory.LOGISTICS
+		_:
+			return BuildCategory.BASIC
+
+static func get_category_name(category: int) -> String:
+	match category:
+		BuildCategory.STRUCTURES:
+			return "STRUCTURES"
+		BuildCategory.PRODUCTION:
+			return "PRODUCTION"
+		BuildCategory.LOGISTICS:
+			return "LOGISTICS"
+		_:
+			return "BASIC"
+
 static func get_station_type(tile_type: int) -> int:
 	match tile_type:
 		TileType.FOREST, TileType.JUNGLE, TileType.TAIGA:

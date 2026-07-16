@@ -150,8 +150,8 @@ func _phase1_multiple_stockpiles():
 
 func _phase2_build_and_consume():
     print("PHASE 2: Build sawmill near stockpile and check resource consumption")
-    var sawmill_pos := _find_buildable_zone(1)
-    # Use the buildable tile closest to the starting stockpile
+    # Stay away from the default 1x1 starting stockpile at world center (64,64)
+    var sawmill_pos := Vector2i(70, 64)
     
     var start_wood: int = received_resources.get("wood", 0)
     print("TEST: resources before sawmill build: ", received_resources)

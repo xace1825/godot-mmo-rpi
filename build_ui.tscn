@@ -5,21 +5,21 @@
 [node name="BuildUI" type="CanvasLayer"]
 script = ExtResource("1_buildui")
 
-[node name="Panel" type="Panel" parent="."]
+[node name="MainPanel" type="Panel" parent="."]
 anchors_preset = 7
 anchor_left = 0.5
 anchor_top = 1.0
 anchor_right = 0.5
 anchor_bottom = 1.0
-offset_left = -320.0
+offset_left = -360.0
 offset_top = -96.0
-offset_right = 320.0
+offset_right = 360.0
 offset_bottom = -16.0
 grow_horizontal = 2
 grow_vertical = 0
 mouse_filter = 2
 
-[node name="HBoxContainer" type="HBoxContainer" parent="Panel"]
+[node name="MainHBox" type="HBoxContainer" parent="MainPanel"]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -28,48 +28,51 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 
-
-[node name="SawmillButton" type="Button" parent="Panel/HBoxContainer"]
+[node name="StructuresButton" type="Button" parent="MainPanel/MainHBox"]
 layout_mode = 2
 size_flags_horizontal = 3
-text = "Лесопилка"
+text = "СТРУКТУРЫ"
 
-[node name="FarmButton" type="Button" parent="Panel/HBoxContainer"]
+[node name="ProductionButton" type="Button" parent="MainPanel/MainHBox"]
 layout_mode = 2
 size_flags_horizontal = 3
-text = "Ферма"
+text = "ПРОИЗВОДСТВО"
 
-[node name="MineButton" type="Button" parent="Panel/HBoxContainer"]
+[node name="LogisticsButton" type="Button" parent="MainPanel/MainHBox"]
 layout_mode = 2
 size_flags_horizontal = 3
-text = "Шахта"
+text = "ЛОГИСТИКА"
 
-[node name="WallButton" type="Button" parent="Panel/HBoxContainer"]
+[node name="SpawnButton" type="Button" parent="MainPanel/MainHBox"]
 layout_mode = 2
 size_flags_horizontal = 3
-text = "Стена"
+text = "СПАВН"
 
-[node name="FloorButton" type="Button" parent="Panel/HBoxContainer"]
-layout_mode = 2
-size_flags_horizontal = 3
-text = "Пол"
-
-[node name="DoorButton" type="Button" parent="Panel/HBoxContainer"]
-layout_mode = 2
-size_flags_horizontal = 3
-text = "Дверь"
-
-[node name="StockpileButton" type="Button" parent="Panel/HBoxContainer"]
-layout_mode = 2
-size_flags_horizontal = 3
-text = "Склад"
-
-[node name="ResetButton" type="Button" parent="Panel/HBoxContainer"]
+[node name="ResetButton" type="Button" parent="MainPanel/MainHBox"]
 layout_mode = 2
 size_flags_horizontal = 3
 text = "СБРОС"
 
-[node name="SpawnButton" type="Button" parent="Panel/HBoxContainer"]
-layout_mode = 2
-size_flags_horizontal = 3
-text = "СПАВН"
+[node name="SubPanel" type="Panel" parent="."]
+visible = false
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -360.0
+offset_top = -172.0
+offset_right = 360.0
+offset_bottom = -100.0
+grow_horizontal = 2
+grow_vertical = 0
+mouse_filter = 2
+
+[node name="SubHBox" type="HBoxContainer" parent="SubPanel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
