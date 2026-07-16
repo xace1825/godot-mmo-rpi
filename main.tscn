@@ -1,14 +1,8 @@
-[gd_scene load_steps=6 format=3 uid="uid://main0000000000000000000000001"]
+[gd_scene load_steps=4 format=3 uid="uid://main0000000000000000000000001"]
 
 [ext_resource type="Script" path="res://main.gd" id="1_main"]
 [ext_resource type="TileSet" path="res://tileset.tres" id="2_tileset"]
 [ext_resource type="PackedScene" uid="uid://buildui000000000000000000000001" path="res://build_ui.tscn" id="3_buildui"]
-[ext_resource type="Shader" path="res://world_shader.gdshader" id="4_worldshader"]
-
-[sub_resource type="ShaderMaterial" id="ShaderMaterial"]
-shader = ExtResource("4_worldshader")
-shader_parameter/time_scale = 1.0
-shader_parameter/wave_amp = 2.0
 
 [node name="Main" type="Node2D"]
 script = ExtResource("1_main")
@@ -20,7 +14,6 @@ zoom = Vector2(0.5, 0.5)
 
 [node name="TileMap" type="TileMap" parent="."]
 tile_set = ExtResource("2_tileset")
-material = SubResource("ShaderMaterial")
 format = 2
 
 [node name="BuildUI" parent="." instance=ExtResource("3_buildui")]

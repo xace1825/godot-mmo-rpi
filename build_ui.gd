@@ -20,13 +20,25 @@ const TYPE_MAP := {
 }
 
 const TYPE_ICONS := {
-	PlanetGenerator.BuildingType.SAWMILL: "[S]",
-	PlanetGenerator.BuildingType.FARM: "[F]",
-	PlanetGenerator.BuildingType.MINE: "[M]",
-	PlanetGenerator.BuildingType.WALL: "[W]",
-	PlanetGenerator.BuildingType.FLOOR: "[Fl]",
-	PlanetGenerator.BuildingType.DOOR: "[D]",
-	PlanetGenerator.BuildingType.STOCKPILE: "[St]"
+	PlanetGenerator.BuildingType.SAWMILL: "[Л]",
+	PlanetGenerator.BuildingType.FARM: "[Ф]",
+	PlanetGenerator.BuildingType.MINE: "[Ш]",
+	PlanetGenerator.BuildingType.WALL: "[С]",
+	PlanetGenerator.BuildingType.FLOOR: "[П]",
+	PlanetGenerator.BuildingType.DOOR: "[Д]",
+	PlanetGenerator.BuildingType.STOCKPILE: "[Ск]"
+}
+
+const RU_NAMES := {
+	"SawmillButton": "Лесопилка",
+	"FarmButton": "Ферма",
+	"MineButton": "Шахта",
+	"WallButton": "Стена",
+	"FloorButton": "Пол",
+	"DoorButton": "Дверь",
+	"StockpileButton": "Склад",
+	"ResetButton": "СБРОС МИРА",
+	"SpawnButton": "СПАВН"
 }
 
 const TYPE_COLORS := {
@@ -54,7 +66,8 @@ func _ready():
 func _button_text(button: Button) -> String:
 	var type_id: int = TYPE_MAP.get(button.name, -1)
 	var icon: String = TYPE_ICONS.get(type_id, "")
-	return "%s\n%s" % [icon, button.name.replace("Button", "")]
+	var ru: String = RU_NAMES.get(button.name, button.name.replace("Button", ""))
+	return "%s\n%s" % [icon, ru]
 
 func _on_button_pressed(button: Button):
 	if button.name == "ResetButton":

@@ -32,44 +32,44 @@ mouse_filter = 2
 [node name="SawmillButton" type="Button" parent="Panel/HBoxContainer"]
 layout_mode = 2
 size_flags_horizontal = 3
-text = "Sawmill"
+text = "Лесопилка"
 
 [node name="FarmButton" type="Button" parent="Panel/HBoxContainer"]
 layout_mode = 2
 size_flags_horizontal = 3
-text = "Farm"
+text = "Ферма"
 
 [node name="MineButton" type="Button" parent="Panel/HBoxContainer"]
 layout_mode = 2
 size_flags_horizontal = 3
-text = "Mine"
+text = "Шахта"
 
 [node name="WallButton" type="Button" parent="Panel/HBoxContainer"]
 layout_mode = 2
 size_flags_horizontal = 3
-text = "Wall"
+text = "Стена"
 
 [node name="FloorButton" type="Button" parent="Panel/HBoxContainer"]
 layout_mode = 2
 size_flags_horizontal = 3
-text = "Floor"
+text = "Пол"
 
 [node name="DoorButton" type="Button" parent="Panel/HBoxContainer"]
 layout_mode = 2
 size_flags_horizontal = 3
-text = "Door"
+text = "Дверь"
 
 [node name="StockpileButton" type="Button" parent="Panel/HBoxContainer"]
 layout_mode = 2
 size_flags_horizontal = 3
-text = "Stockpile"
+text = "Склад"
 
 [node name="ResetButton" type="Button" parent="Panel/HBoxContainer"]
 layout_mode = 2
 size_flags_horizontal = 3
-text = "RESET"
+text = "СБРОС"
 
 [node name="SpawnButton" type="Button" parent="Panel/HBoxContainer"]
 layout_mode = 2
 size_flags_horizontal = 3
-text = "SPAWN"
+text = "СПАВН"
