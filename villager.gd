@@ -6,7 +6,7 @@ extends Node2D
 var previous_position: Vector2 = Vector2.ZERO
 var target_position: Vector2 = Vector2.ZERO
 var move_progress: float = 0.0
-var move_speed: float = 4.0
+var move_speed: float = 2.0
 var hop_phase: float = 0.0
 
 func _ready():
@@ -29,9 +29,12 @@ func setup(job: String):
 		shadow.modulate = Color(0, 0, 0, 0.35)
 
 func set_next_position(next_pos: Vector2):
+	if target_position.is_equal_approx(next_pos):
+		return
 	previous_position = position
 	target_position = next_pos
 	move_progress = 0.0
+	hop_phase = 0.0
 
 func _process(delta):
 	if target_position != previous_position:
