@@ -85,7 +85,7 @@ static func _resolve_tile(height: float, temp: float, moisture: float) -> int:
 	if height < HEIGHT_OCEAN:
 		return TileType.OCEAN
 	if height < HEIGHT_SHORE:
-		return TileType.SHORE
+		return TileType.GRASSLAND  # removed sand/shore, now buildable grass
 	if height >= HEIGHT_PEAK:
 		return TileType.PEAK
 	if height >= HEIGHT_HIGH:
@@ -99,23 +99,23 @@ static func _resolve_tile(height: float, temp: float, moisture: float) -> int:
 		return TileType.TAIGA if moisture > WET_WET else TileType.TUNDRA
 	if temp < TEMP_WARM:
 		if moisture < WET_DRY:
-			return TileType.DESERT
+			return TileType.GRASSLAND  # removed desert
 		return TileType.FOREST if moisture > WET_WET else TileType.GRASSLAND
 	if temp < TEMP_HOT:
 		if moisture < WET_DRY:
-			return TileType.DESERT
+			return TileType.GRASSLAND  # removed desert
 		return TileType.JUNGLE if moisture > WET_WET else TileType.FOREST
 
 	if moisture < WET_DRY:
-		return TileType.DESERT
-	return TileType.JUNGLE if moisture > WET_WET else TileType.GRASSLAND
+		return TileType.GRASSLAND  # removed desert
+	return TileType.JUNGLE if moisture > WET_WET else TileType.FOREST
 
 static func tile_to_atlas_coords(type: int) -> Vector2i:
 	return Vector2i(type, 0)
 
 static func is_buildable(type: int) -> bool:
 	match type:
-		TileType.DEEP_OCEAN, TileType.OCEAN, TileType.SHORE, TileType.HILLS, TileType.MOUNTAIN, TileType.PEAK, TileType.SNOW:
+		TileType.DEEP_OCEAN, TileType.OCEAN:
 			return false
 		_:
 			return true
