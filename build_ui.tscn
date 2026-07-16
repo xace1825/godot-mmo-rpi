@@ -17,7 +17,7 @@ offset_right = 360.0
 offset_bottom = -16.0
 grow_horizontal = 2
 grow_vertical = 0
-mouse_filter = 2
+mouse_filter = 0
 
 [node name="MainHBox" type="HBoxContainer" parent="MainPanel"]
 layout_mode = 1
@@ -26,7 +26,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-mouse_filter = 2
+mouse_filter = 0
 
 [node name="StructuresButton" type="Button" parent="MainPanel/MainHBox"]
 layout_mode = 2
@@ -66,7 +66,7 @@ offset_right = 360.0
 offset_bottom = -100.0
 grow_horizontal = 2
 grow_vertical = 0
-mouse_filter = 2
+mouse_filter = 0
 
 [node name="SubHBox" type="HBoxContainer" parent="SubPanel"]
 layout_mode = 1
@@ -75,4 +75,4 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-mouse_filter = 2
+mouse_filter = 0

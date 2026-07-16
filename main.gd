@@ -326,6 +326,7 @@ func _on_world_reset(data: Dictionary):
 	print("Client: world reset received, clearing local state")
 	camera_initialized = false
 	camera_target_position = Vector2.ZERO
+	camera_frames = 0
 	# Clear local buildings
 	for pos in client_buildings:
 		if is_instance_valid(client_buildings[pos]):
