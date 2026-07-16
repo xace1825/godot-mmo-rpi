@@ -246,8 +246,8 @@ func _step_toward_dict(from_pos: Vector2i, to_pos: Vector2i) -> Dictionary:
 				current = open_set[i]
 				best_idx = i
 		open_set.remove_at(best_idx)
-		
 		if current == goal:
+			# Reconstruct path and return first step after start
 			var path: Array[Vector2i] = [current]
 			while came_from.has(_key(current)):
 				current = came_from[_key(current)]
@@ -257,7 +257,7 @@ func _step_toward_dict(from_pos: Vector2i, to_pos: Vector2i) -> Dictionary:
 				var next_step: Vector2i = path[1]
 				return {"x": next_step.x, "y": next_step.y}
 			return {"x": start.x, "y": start.y}
-		
+
 		for d in dirs:
 			var neighbor: Vector2i = current + d
 			if neighbor.x < 0 or neighbor.x >= PlanetGenerator.WORLD_SIZE or neighbor.y < 0 or neighbor.y >= PlanetGenerator.WORLD_SIZE:
@@ -272,7 +272,7 @@ func _step_toward_dict(from_pos: Vector2i, to_pos: Vector2i) -> Dictionary:
 				f_score[nk] = tentative_g + _manhattan(neighbor, goal)
 				if not open_set.has(neighbor):
 					open_set.append(neighbor)
-	
+
 	return {"x": from_pos.x, "y": from_pos.y}
 
 func _key(pos: Vector2i) -> String:

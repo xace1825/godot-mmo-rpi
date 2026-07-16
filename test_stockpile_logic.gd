@@ -162,7 +162,7 @@ func _phase2_build_and_consume():
     for i in range(3):
         Network.ask_spawn_villager()
         await get_tree().create_timer(0.5).timeout
-    await get_tree().create_timer(25.0).timeout
+    await get_tree().create_timer(35.0).timeout
     
     var key: String = _pos_key(sawmill_pos)
     var sawmill_built := false
