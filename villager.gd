@@ -40,10 +40,10 @@ func _process(delta):
 	if target_position != previous_position:
 		move_progress = min(move_progress + delta * move_speed, 1.0)
 		position = previous_position.lerp(target_position, move_progress)
-		hop_phase += delta * 15.0
-		sprite.position.y = -abs(sin(hop_phase)) * 3.0
+		hop_phase += delta * 8.0
+		sprite.position.y = -abs(sin(hop_phase)) * 2.0
 		if shadow:
-			shadow.scale = Vector2(1.0 - abs(sin(hop_phase)) * 0.3, 1.0 - abs(sin(hop_phase)) * 0.3)
+			shadow.scale = Vector2(1.0 - abs(sin(hop_phase)) * 0.2, 1.0 - abs(sin(hop_phase)) * 0.2)
 		if move_progress >= 1.0:
 			previous_position = target_position
 			sprite.position.y = 0.0
