@@ -3,6 +3,7 @@ extends Node2D
 @onready var sprite: Sprite2D = $Sprite
 @onready var shadow: Sprite2D = $Shadow
 @onready var carrying_rect: ColorRect = $Carrying
+@onready var click_area: Area2D = $ClickArea
 
 var previous_position: Vector2 = Vector2.ZERO
 var target_position: Vector2 = Vector2.ZERO

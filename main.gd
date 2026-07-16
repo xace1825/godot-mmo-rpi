@@ -485,7 +485,7 @@ func _on_villager_sync(villagers: Dictionary):
 			node.setup(job)
 			node.set_carrying(carrying.get("resource", ""), carrying.get("amount", 0))
 			client_villagers[id] = node
-			node.gui_input.connect(_on_villager_clicked.bind(id, v))
+			node.click_area.input_event.connect(_on_villager_clicked.bind(id, v))
 	# Remove villagers that are no longer present
 	for id in client_villagers.keys():
 		if not villagers.has(id):

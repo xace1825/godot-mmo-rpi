@@ -1,7 +1,10 @@
-[gd_scene load_steps=2 format=3 uid="uid://c0villager12345"]
+[gd_scene load_steps=3 format=3 uid="uid://c0villager12345"]
 
 [ext_resource type="Texture2D" uid="uid://c1xryumkqxfw0" path="res://villager.png" id="1_sprite"]
 [ext_resource type="Script" path="res://villager.gd" id="2_script"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_00000000000000000001"]
+size = Vector2(32, 32)
 
 [node name="Villager" type="Node2D"]
 z_index = 2
@@ -23,3 +26,8 @@ offset_top = -14.0
 offset_right = 16.0
 offset_bottom = -2.0
 color = Color(0.55, 0.35, 0.2, 1)
+
+[node name="ClickArea" type="Area2D" parent="."]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="ClickArea"]
+shape = SubResource("RectangleShape2D_00000000000000000001")
