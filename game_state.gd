@@ -215,21 +215,31 @@ func random_walkable_tile() -> Vector2i:
 func spawn_builder_for_blueprint(pos: Vector2i) -> Dictionary:
 	var id := next_villager_id
 	next_villager_id += 1
+	# Spawn builder near the nearest stockpile so they visibly walk to the blueprint
+	var start_pos := pos
+	var stock_id := find_nearest_stockpile(pos)
+	if stock_id != "":
+		var stock: Dictionary = stockpiles[stock_id]
+		var tl := Vector2i(int(stock["topleft"]["x"]), int(stock["topleft"]["y"]))
+		var br := tl + Vector2i(int(stock["size"]["x"]), int(stock["size"]["y"])) - Vector2i(1, 1)
+		start_pos = Vector2i((tl.x + br.x) / 2, (tl.y + br.y) / 2)
+	else:
+		start_pos = random_walkable_tile()
 	var v := {
 		"id": id,
 		"name": "Builder %d" % id,
-		"pos": {"x": pos.x, "y": pos.y},
-		"home": {"x": pos.x, "y": pos.y},
+		"pos": {"x": start_pos.x, "y": start_pos.y},
+		"home": {"x": start_pos.x, "y": start_pos.y},
 		"workplace": {"x": pos.x, "y": pos.y},
 		"job": "builder",
-		"state": "idle",
+		"state": "moving_to_blueprint",
 		"progress": 0.0,
 		"carrying": {"resource": "", "amount": 0},
 		"target_blueprint": "%d,%d" % [pos.x, pos.y],
 		"building_type": -1
 	}
 	villagers[str(id)] = v
-	print("Server: spawned builder ", id, " at ", pos.x, ",", pos.y)
+	print("Server: spawned builder ", id, " at ", start_pos.x, ",", start_pos.y, " for blueprint ", pos.x, ",", pos.y)
 	return v
 
 func complete_blueprint(pos: Vector2i) -> bool:
@@ -389,6 +399,28 @@ func load_world():
 	else:
 		push_error("Failed to parse save file")
 
+func create_default_stockpile() -> bool:
+	ensure_world_generated()
+	var half: int = PlanetGenerator.WORLD_SIZE / 2
+	for radius in range(0, 30):
+		for dy in range(-radius, radius + 1):
+			for dx in range(-radius, radius + 1):
+				if abs(dx) != radius and abs(dy) != radius:
+					continue
+				var pos := Vector2i(half + dx, half + dy)
+				# Check 3x3 area is buildable
+				var ok := true
+				for sy in range(3):
+					for sx in range(3):
+						if not can_build_at(pos + Vector2i(sx, sy)):
+							ok = false
+							break
+					if not ok:
+						break
+				if ok and add_stockpile(pos, Vector2i(3, 3)):
+					return true
+	return false
+
 func save_world():
 	var file = FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	file.store_string(JSON.stringify({
@@ -414,4 +446,5 @@ func reset_world():
 	resources = {"wood": 0, "food": 0, "stone": 0}
 	if FileAccess.file_exists(SAVE_PATH):
 		DirAccess.remove_absolute(SAVE_PATH)
-	print("Server: world reset, save cleared")
+	create_default_stockpile()
+	print("Server: world reset, save cleared, default stockpile created")

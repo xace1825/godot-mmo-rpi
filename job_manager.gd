@@ -85,7 +85,7 @@ func _process_builders():
 				if stock_id == "":
 					v["state"] = "waiting_resources"
 					continue
-				var stock = GameState.stockpiles[stock_id]
+				var stock: Dictionary = GameState.stockpiles[stock_id]
 				var stock_pos = Vector2i(int(stock["topleft"]["x"]), int(stock["topleft"]["y"]))
 				if current_pos == stock_pos:
 					if GameState.pay_blueprint_cost(pos):

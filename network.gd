@@ -14,6 +14,12 @@ var peer: ENetMultiplayerPeer
 
 func _ready():
 	multiplayer.peer_connected.connect(_on_peer_connected)
+	GameState.ensure_world_generated()
+	if not FileAccess.file_exists(GameState.SAVE_PATH):
+		GameState.create_default_stockpile()
+		print("Server: created default starting stockpile")
+	else:
+		print("Server: save file exists, skipping default stockpile creation")
 
 func start_server(port: int = DEFAULT_PORT) -> bool:
 	peer = ENetMultiplayerPeer.new()

@@ -156,13 +156,9 @@ func _handle_camera_input(delta):
 		direction = direction.normalized()
 	camera.position += direction * camera_speed * delta / camera.zoom.x
 
-func _input(event):
+func _unhandled_input(event):
 	if is_server:
 		return
-	if event is InputEventMouseButton or event is InputEventMouseMotion:
-		var hovered := get_viewport().gui_get_hovered_control()
-		if hovered != null and hovered != tile_map:
-			return
 	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
 			camera.zoom = camera.zoom * (1.0 + zoom_speed)
@@ -198,6 +194,12 @@ func _input(event):
 			drag_current_tile = tile
 	elif event is InputEventKey and event.pressed and event.keycode == KEY_SPACE:
 		camera.position = Vector2(WORLD_SIZE * TILE_SIZE / 2, WORLD_SIZE * TILE_SIZE / 2)
+
+func _input(event):
+	if is_server:
+		return
+	# Camera pan via keys (handled by Godot's input map) or mouse drag could go here
+	pass
 
 func _draw():
 	if is_dragging_stockpile and drag_start_tile.x >= 0 and drag_current_tile.x >= 0:
