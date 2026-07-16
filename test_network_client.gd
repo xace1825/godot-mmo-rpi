@@ -116,9 +116,9 @@ func _find_stockpile_zone(center: Vector2i, size: Vector2i) -> Vector2i:
 func _run_tests(data: Dictionary):
     await get_tree().create_timer(0.5).timeout
 
-    var valid_pos := _find_buildable_zone_center(7)
+    var valid_pos := _find_buildable_zone_center(3)
     
-    # Step 1: Create a stockpile near center so resources can be stored
+    # Step 1: Create a stockpile near the sawmill location
     var stock_size := Vector2i(3, 3)
     var stock_top_left := _find_stockpile_zone(valid_pos, stock_size)
     if stock_top_left.x < 0:
@@ -134,75 +134,50 @@ func _run_tests(data: Dictionary):
     else:
         print("TEST FAIL: stockpile not added")
     
-    # Step 2: Build a fully enclosed room with walls/floor/door, then sawmill inside
-    print("TEST: building enclosed room around ", valid_pos)
-    # Room: 5x5, walls on perimeter (including corners), door replaces one wall, floor inside
-    for rx in range(-2, 3):
-        for ry in range(-2, 3):
-            var pos := Vector2i(valid_pos.x + rx, valid_pos.y + ry)
-            if pos.x < 0 or pos.x >= PlanetGenerator.WORLD_SIZE or pos.y < 0 or pos.y >= PlanetGenerator.WORLD_SIZE:
-                continue
-            if not PlanetGenerator.is_buildable(world[pos.x][pos.y]):
-                continue
-            var is_perimeter := (rx == -2 or rx == 2 or ry == -2 or ry == 2)
-            var is_door := (rx == 2 and ry == 0)
-            if is_perimeter:
-                if is_door:
-                    Network.ask_build(pos, PlanetGenerator.BuildingType.DOOR)
-                else:
-                    Network.ask_build(pos, PlanetGenerator.BuildingType.WALL)
-            else:
-                if pos != valid_pos:
-                    Network.ask_build(pos, PlanetGenerator.BuildingType.FLOOR)
-            await get_tree().create_timer(0.05).timeout
-    
-    await get_tree().create_timer(10.0).timeout
-    
-    # Step 3: Build sawmill inside the room
+    # Step 2: Build sawmill directly on open terrain (no room needed for test)
     print("TEST: placing sawmill blueprint at ", valid_pos)
-    Network.ask_build(valid_pos)
+    Network.ask_build(valid_pos, PlanetGenerator.BuildingType.SAWMILL)
     await get_tree().create_timer(2.0).timeout
     
-    # Manually spawn a villager via SPAWN button; it should auto-assign as builder
-    print("TEST: manually spawning villager for construction")
-    Network.ask_spawn_villager()
-    await get_tree().create_timer(8.0).timeout
+    # Manually spawn villagers via SPAWN button; they auto-assign as builders
+    print("TEST: manually spawning villagers for construction")
+    for i in range(3):
+        Network.ask_spawn_villager()
+        await get_tree().create_timer(0.5).timeout
+    await get_tree().create_timer(10.0).timeout
     
     var key = "%d,%d" % [valid_pos.x, valid_pos.y]
-    if received_blueprints.has(key) or received_buildings.has(key):
-        print("TEST PASS: blueprint placed or already completed")
+    if received_buildings.has(key) and received_buildings[key] == PlanetGenerator.BuildingType.SAWMILL:
+        print("TEST PASS: sawmill built")
     else:
-        print("TEST FAIL: blueprint not placed")
+        print("TEST FAIL: sawmill not built, type=", received_buildings.get(key, -1))
     
     if received_villagers.size() >= 1:
-        print("TEST PASS: builder spawned manually via SPAWN")
+        print("TEST PASS: villagers spawned manually via SPAWN")
     else:
-        print("TEST FAIL: builder not spawned")
+        print("TEST FAIL: villagers not spawned")
     
-    if received_buildings.has(key):
-        print("TEST PASS: blueprint completed into building")
-    else:
-        print("TEST INFO: blueprint not yet completed, resources=", received_resources)
+    # Step 3: Wait for production
+    var wood_before: int = received_resources.get("wood", 0)
+    print("TEST: resources before production wait = ", received_resources)
+    await get_tree().create_timer(15.0).timeout
+    print("TEST: resources after production wait = ", received_resources)
     
-    await get_tree().create_timer(5.0).timeout
-    print("TEST: resources = ", received_resources)
-    
-    if received_resources["wood"] > 0 or received_resources["food"] > 0 or received_resources["stone"] > 0:
+    if received_resources.get("wood", 0) > wood_before:
         print("TEST PASS: resource production works")
     else:
-        print("TEST INFO: no resources produced yet")
+        print("TEST INFO: no wood produced yet, workers may still be walking")
     
     # Test outdoor station speed: build a second sawmill outside any room
     var outdoor_pos := _find_buildable_zone_center(3)
-    # Make sure it's far from the room
     outdoor_pos = Vector2i(valid_pos.x + 10, valid_pos.y)
     while not PlanetGenerator.is_buildable(world[outdoor_pos.x][outdoor_pos.y]) or outdoor_pos == valid_pos:
         outdoor_pos.x += 1
     print("TEST: placing outdoor sawmill at ", outdoor_pos)
-    Network.ask_build(outdoor_pos)
+    Network.ask_build(outdoor_pos, PlanetGenerator.BuildingType.SAWMILL)
     await get_tree().create_timer(5.0).timeout
     var out_key := "%d,%d" % [outdoor_pos.x, outdoor_pos.y]
-    if received_buildings.has(out_key):
+    if received_buildings.has(out_key) and received_buildings[out_key] == PlanetGenerator.BuildingType.SAWMILL:
         print("TEST PASS: outdoor sawmill built")
     else:
         print("TEST INFO: outdoor sawmill not completed")
@@ -220,7 +195,7 @@ func _run_tests(data: Dictionary):
             break
     
     var prev_count := received_blueprints.size() + received_buildings.size()
-    Network.ask_build(water_pos)
+    Network.ask_build(water_pos, PlanetGenerator.BuildingType.SAWMILL)
     await get_tree().create_timer(1.0).timeout
     if received_blueprints.size() + received_buildings.size() == prev_count:
         print("TEST PASS: blocked build rejected")

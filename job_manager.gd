@@ -143,8 +143,10 @@ func _process_builders():
 					bp["progress"] = 1.0
 					if already_paid:
 						if GameState.complete_blueprint(pos):
+							v["job"] = "idle"
 							v["target_blueprint"] = ""
 							v["state"] = "idle"
+							v["workplace"] = {}
 							v["to_pos"] = v["pos"].duplicate()
 							v["from_pos"] = v["pos"].duplicate()
 							v["move_progress"] = 0.0
@@ -214,11 +216,12 @@ func _process_workers():
 		var current_tile = Vector2i(int(round(v["pos"]["x"])), int(round(v["pos"]["y"])))
 		var workplace := Vector2i(int(v["workplace"]["x"]), int(v["workplace"]["y"]))
 		match v["state"]:
-			"idle", "working":
+			"idle", "working", "moving_to_work":
 				# Walk to workplace if not there
 				if current_tile != workplace:
 					if v["from_pos"] == v["to_pos"]:
 						v["to_pos"] = _step_toward_dict(current_tile, workplace)
+					v["state"] = "moving_to_work"
 				else:
 					var speed_mult: float = 1.0
 					if not GameState.is_indoor_station(workplace):
