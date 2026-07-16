@@ -161,7 +161,12 @@ func _run_tests(data: Dictionary):
     # Step 3: Build sawmill inside the room
     print("TEST: placing sawmill blueprint at ", valid_pos)
     Network.ask_build(valid_pos)
-    await get_tree().create_timer(5.0).timeout
+    await get_tree().create_timer(2.0).timeout
+    
+    # Manually spawn a villager via SPAWN button; it should auto-assign as builder
+    print("TEST: manually spawning villager for construction")
+    Network.ask_spawn_villager()
+    await get_tree().create_timer(8.0).timeout
     
     var key = "%d,%d" % [valid_pos.x, valid_pos.y]
     if received_blueprints.has(key) or received_buildings.has(key):
@@ -170,7 +175,7 @@ func _run_tests(data: Dictionary):
         print("TEST FAIL: blueprint not placed")
     
     if received_villagers.size() >= 1:
-        print("TEST PASS: builder spawned")
+        print("TEST PASS: builder spawned manually via SPAWN")
     else:
         print("TEST FAIL: builder not spawned")
     
