@@ -7,6 +7,7 @@ signal blueprint_placed(pos: Vector2i, type_id: int)
 signal building_placed(pos: Vector2i, type_id: int)
 signal stockpile_added(id: String, data: Dictionary)
 signal world_reset(data: Dictionary)
+signal ground_items_sync(items: Dictionary)
 
 const DEFAULT_PORT: int = 7777
 
@@ -71,6 +72,10 @@ func place_building(pos: Vector2i, type_id: int):
 @rpc("authority", "call_remote", "reliable")
 func place_blueprint(pos: Vector2i, type_id: int):
 	blueprint_placed.emit(pos, type_id)
+
+@rpc("authority", "call_remote", "reliable")
+func sync_ground_items(items: Dictionary):
+	ground_items_sync.emit(items)
 
 func _is_peer_connected() -> bool:
 	if not multiplayer.has_multiplayer_peer():
@@ -198,6 +203,11 @@ func broadcast_stockpile_added(id: String, data: Dictionary):
 func broadcast_stockpile_update(id: String, data: Dictionary):
 	if multiplayer.has_multiplayer_peer():
 		rpc("sync_stockpile", id, data.duplicate())
+
+func broadcast_ground_items_sync():
+	if multiplayer.has_multiplayer_peer():
+		rpc("sync_ground_items", GameState.ground_items.duplicate())
+		_broadcast_state()
 
 func _on_peer_connected(id: int):
 	print("Peer connected: ", id)

@@ -2,12 +2,19 @@ extends Node2D
 
 @onready var sprite: Sprite2D = $Sprite
 @onready var shadow: Sprite2D = $Shadow
+@onready var carrying_rect: ColorRect = $Carrying
 
 var previous_position: Vector2 = Vector2.ZERO
 var target_position: Vector2 = Vector2.ZERO
 var move_progress: float = 0.0
 var move_speed: float = 2.0
 var hop_phase: float = 0.0
+
+const CARRY_COLORS := {
+	"wood": Color(0.55, 0.35, 0.2),
+	"stone": Color(0.55, 0.55, 0.6),
+	"food": Color(0.3, 0.65, 0.25)
+}
 
 func _ready():
 	previous_position = position
@@ -27,6 +34,15 @@ func setup(job: String):
 			sprite.modulate = Color(0.9, 0.9, 0.9)
 	if shadow:
 		shadow.modulate = Color(0, 0, 0, 0.35)
+
+func set_carrying(resource: String, amount: int):
+	if carrying_rect == null:
+		return
+	if resource == "" or amount <= 0:
+		carrying_rect.visible = false
+	else:
+		carrying_rect.visible = true
+		carrying_rect.color = CARRY_COLORS.get(resource, Color(0.9, 0.9, 0.9))
 
 func set_next_position(next_pos: Vector2):
 	if target_position.is_equal_approx(next_pos):

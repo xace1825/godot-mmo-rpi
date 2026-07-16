@@ -5,6 +5,7 @@ const SAVE_PATH: String = "user://world_save.json"
 var buildings: Dictionary = {}
 var blueprints: Dictionary = {}
 var stockpiles: Dictionary = {}
+var ground_items: Dictionary = {}
 var rooms: Array = []
 var room_station_status: Dictionary = {}
 var world_seed: int = 12345
@@ -394,6 +395,8 @@ func find_nearest_stockpile(pos: Vector2i) -> String:
 func deposit_to_nearest_stockpile(pos: Vector2i, resource: String, amount: int) -> bool:
 	var stock_id: String = find_nearest_stockpile(pos)
 	if stock_id == "":
+		# Drop on ground if no stockpile available
+		_drop_item_on_ground(pos, resource, amount)
 		return false
 	var stock: Dictionary = stockpiles[stock_id]
 	stock["resources"][resource] += amount
@@ -401,6 +404,37 @@ func deposit_to_nearest_stockpile(pos: Vector2i, resource: String, amount: int) 
 	Network.broadcast_resource_sync()
 	Network.broadcast_stockpile_update(stock_id, stock.duplicate())
 	return true
+
+func _drop_item_on_ground(pos: Vector2i, resource: String, amount: int):
+	var key: String = _pos_key(pos)
+	if ground_items.has(key):
+		var existing: Dictionary = ground_items[key]
+		if existing.get("resource", "") == resource:
+			existing["amount"] += amount
+		else:
+			# Mixed resources: keep newest on top visually, but merge different types
+			existing["amount"] += amount
+	else:
+		ground_items[key] = {"resource": resource, "amount": amount}
+	Network.broadcast_ground_items_sync()
+	print("Server: dropped ", amount, " ", resource, " on ground at ", pos)
+
+func pickup_ground_item(pos: Vector2i, resource: String, max_amount: int) -> int:
+	var key: String = _pos_key(pos)
+	if not ground_items.has(key):
+		return 0
+	var item: Dictionary = ground_items[key]
+	if item.get("resource", "") != resource:
+		return 0
+	var amount: int = mini(max_amount, item["amount"])
+	item["amount"] -= amount
+	if item["amount"] <= 0:
+		ground_items.erase(key)
+	Network.broadcast_ground_items_sync()
+	return amount
+
+func get_ground_items_data() -> Dictionary:
+	return ground_items.duplicate()
 
 func _recalc_total_resources():
 	resources = {"wood": 0, "food": 0, "stone": 0}
@@ -432,6 +466,7 @@ func get_world_data() -> Dictionary:
 		"buildings": buildings.duplicate(),
 		"blueprints": blueprints.duplicate(),
 		"stockpiles": stock_copy,
+		"ground_items": ground_items.duplicate(),
 		"resources": resources.duplicate(),
 		"villagers": villagers.duplicate()
 	}
@@ -451,10 +486,11 @@ func load_world():
 		buildings = data.get("buildings", {})
 		blueprints = data.get("blueprints", {})
 		stockpiles = data.get("stockpiles", {})
+		ground_items = data.get("ground_items", {})
 		resources = data.get("resources", {"wood": 0, "food": 0, "stone": 0})
 		villagers = data.get("villagers", {})
 		next_villager_id = data.get("next_villager_id", 1)
-		print("Server: loaded planet with ", buildings.size(), " buildings, ", blueprints.size(), " blueprints, ", stockpiles.size(), " stockpiles, ", villagers.size(), " villagers")
+		print("Server: loaded planet with ", buildings.size(), " buildings, ", blueprints.size(), " blueprints, ", stockpiles.size(), " stockpiles, ", ground_items.size(), " ground piles, ", villagers.size(), " villagers")
 	else:
 		push_error("Failed to parse save file")
 
@@ -478,6 +514,7 @@ func save_world():
 		"buildings": buildings,
 		"blueprints": blueprints,
 		"stockpiles": stockpiles,
+		"ground_items": ground_items,
 		"resources": resources,
 		"villagers": villagers,
 		"next_villager_id": next_villager_id
@@ -489,6 +526,7 @@ func reset_world():
 	buildings.clear()
 	blueprints.clear()
 	stockpiles.clear()
+	ground_items.clear()
 	rooms.clear()
 	room_station_status.clear()
 	villagers.clear()

@@ -19,10 +19,12 @@ var client_buildings: Dictionary = {}
 var client_blueprints: Dictionary = {}
 var client_stockpiles: Dictionary = {}
 var client_villagers: Dictionary = {}
+var ground_item_scene = preload("res://ground_item.tscn")
 var client_resources: Dictionary = {"wood": 0, "food": 0, "stone": 0}
 var client_stockpile_labels: Dictionary = {}
 var client_stockpile_sprites: Dictionary = {}
 var client_villager_nodes: Dictionary = {}
+var client_ground_item_nodes: Dictionary = {}
 var is_server: bool = false
 var camera_frames: int = 0
 var camera_speed: float = 1200.0
@@ -62,6 +64,7 @@ func setup_client():
 	Network.villager_sync.connect(_on_villager_sync)
 	Network.resource_sync.connect(_on_resource_sync)
 	Network.world_reset.connect(_on_world_reset)
+	Network.ground_items_sync.connect(_on_ground_items_sync)
 	build_ui.build_type_selected.connect(_on_build_type_selected)
 	build_ui.reset_requested.connect(_on_reset_requested)
 	build_ui.spawn_requested.connect(_on_spawn_requested)
@@ -355,6 +358,39 @@ func _on_world_reset(data: Dictionary):
 	# Re-apply sync
 	_on_full_sync(data)
 
+func _on_ground_items_sync(items: Dictionary):
+	# Remove items no longer present
+	for key in client_ground_item_nodes.keys():
+		if not items.has(key):
+			var node = client_ground_item_nodes[key]
+			if is_instance_valid(node):
+				node.queue_free()
+			client_ground_item_nodes.erase(key)
+	# Add/update items
+	for key in items:
+		var item: Dictionary = items[key]
+		var parts: PackedStringArray = key.split(",")
+		var pos := Vector2i(int(parts[0]), int(parts[1]))
+		if client_ground_item_nodes.has(key):
+			var node = client_ground_item_nodes[key]
+			if is_instance_valid(node):
+				_update_ground_item_node(node, item)
+			continue
+		var node := _create_ground_item_node(pos, item)
+		client_ground_item_nodes[key] = node
+
+func _create_ground_item_node(pos: Vector2i, item: Dictionary) -> Node2D:
+	var type: String = item.get("resource", "")
+	var amount: int = item.get("amount", 0)
+	var node := ground_item_scene.instantiate()
+	node.position = Vector2(pos.x * TILE_SIZE + TILE_SIZE / 2, pos.y * TILE_SIZE + TILE_SIZE / 2)
+	node.setup(type, amount)
+	add_child(node)
+	return node
+
+func _update_ground_item_node(node: Node2D, item: Dictionary):
+	node.setup(item.get("resource", ""), item.get("amount", 0))
+
 func _on_resource_sync(resources: Dictionary):
 	client_resources = resources.duplicate()
 	_update_stockpile_labels()
@@ -436,15 +472,18 @@ func _on_villager_sync(villagers: Dictionary):
 		var y := float(v["pos"]["y"])
 		var target := Vector2(x * TILE_SIZE + TILE_SIZE / 2, y * TILE_SIZE + TILE_SIZE / 2)
 		var job := v["job"] as String
+		var carrying: Dictionary = v.get("carrying", {"resource": "", "amount": 0})
 		if client_villagers.has(id):
 			var node = client_villagers[id]
 			node.set_next_position(target)
 			node.setup(job)
+			node.set_carrying(carrying.get("resource", ""), carrying.get("amount", 0))
 		else:
 			var node = villager_scene.instantiate()
 			node.position = target
 			add_child(node)
 			node.setup(job)
+			node.set_carrying(carrying.get("resource", ""), carrying.get("amount", 0))
 			client_villagers[id] = node
 			node.gui_input.connect(_on_villager_clicked.bind(id, v))
 	# Remove villagers that are no longer present

@@ -15,3 +15,11 @@ texture = ExtResource("1_sprite")
 
 [node name="Sprite" type="Sprite2D" parent="."]
 texture = ExtResource("1_sprite")
+
+[node name="Carrying" type="ColorRect" parent="."]
+visible = false
+offset_left = 4.0
+offset_top = -14.0
+offset_right = 16.0
+offset_bottom = -2.0
+color = Color(0.55, 0.35, 0.2, 1)
