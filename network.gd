@@ -14,6 +14,8 @@ var peer: ENetMultiplayerPeer
 var last_full_sync: Dictionary = {}
 
 func _ready():
+	Engine.time_scale = 5.0
+	print("Game speed set to 5x for faster testing")
 	multiplayer.peer_connected.connect(_on_peer_connected)
 	GameState.ensure_world_generated()
 	if not FileAccess.file_exists(GameState.SAVE_PATH):
