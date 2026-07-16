@@ -234,7 +234,7 @@ func _step_toward_dict(from_pos: Vector2i, to_pos: Vector2i) -> Dictionary:
 	var f_score: Dictionary = {}
 	f_score[_key(start)] = _manhattan(start, goal)
 	var visited: int = 0
-	var max_visited: int = max(200, _manhattan(start, goal) * 3)
+	var max_visited: int = 5000
 	
 	while open_set.size() > 0 and visited < max_visited:
 		visited += 1

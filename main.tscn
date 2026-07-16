@@ -3,6 +3,7 @@
 [ext_resource type="Script" path="res://main.gd" id="1_main"]
 [ext_resource type="TileSet" path="res://tileset.tres" id="2_tileset"]
 [ext_resource type="PackedScene" uid="uid://buildui000000000000000000000001" path="res://build_ui.tscn" id="3_buildui"]
+[ext_resource type="PackedScene" uid="uid://infopanel0000000000000000000001" path="res://info_panel.tscn" id="4_infopanel"]
 
 [node name="Main" type="Node2D"]
 script = ExtResource("1_main")
@@ -17,3 +18,5 @@ tile_set = ExtResource("2_tileset")
 format = 2
 
 [node name="BuildUI" parent="." instance=ExtResource("3_buildui")]
+
+[node name="InfoPanel" parent="." instance=ExtResource("4_infopanel")]

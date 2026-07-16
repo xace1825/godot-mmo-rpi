@@ -21,6 +21,8 @@ var client_stockpiles: Dictionary = {}
 var client_villagers: Dictionary = {}
 var client_resources: Dictionary = {"wood": 0, "food": 0, "stone": 0}
 var client_stockpile_labels: Dictionary = {}
+var client_stockpile_sprites: Dictionary = {}
+var client_villager_nodes: Dictionary = {}
 var is_server: bool = false
 var camera_frames: int = 0
 var camera_speed: float = 1200.0
@@ -30,6 +32,8 @@ var chunk_manager: ChunkManager = null
 var reconnect_attempts: int = 0
 var target_server_ip: String = ""
 var target_server_port: int = 7777
+var info_panel: CanvasLayer = null
+var selected_entity: Variant = null
 
 # Stockpile drag selection
 var is_dragging_stockpile: bool = false
@@ -61,6 +65,7 @@ func setup_client():
 	build_ui.build_type_selected.connect(_on_build_type_selected)
 	build_ui.reset_requested.connect(_on_reset_requested)
 	build_ui.spawn_requested.connect(_on_spawn_requested)
+	info_panel = $InfoPanel
 
 var selected_build_type: int = -1
 
@@ -173,6 +178,22 @@ func _unhandled_input(event):
 		elif event.button_index == MOUSE_BUTTON_LEFT:
 			var tile := tile_map.local_to_map(tile_map.get_local_mouse_position())
 			if tile.x < 0 or tile.x >= WORLD_SIZE or tile.y < 0 or tile.y >= WORLD_SIZE:
+				return
+			# Info click when no build type selected
+			if selected_build_type == -1:
+				var stock_id := _get_stockpile_at_tile(tile)
+				if stock_id != "":
+					selected_entity = {"type": "stockpile", "id": stock_id}
+					if info_panel:
+						info_panel.show_stockpile(stock_id, Network.last_full_sync.get("stockpiles", {}).get(stock_id, {}))
+					return
+				# Check villager click by distance
+				var nearest_villager := _get_villager_at_tile(tile)
+				if nearest_villager != "":
+					selected_entity = {"type": "villager", "id": nearest_villager}
+					if info_panel:
+						info_panel.show_villager(nearest_villager, Network.last_full_sync.get("villagers", {}).get(nearest_villager, {}))
+					return
 				return
 			if selected_build_type == PlanetGenerator.BuildingType.STOCKPILE:
 				if event.pressed:
@@ -376,6 +397,8 @@ func _on_stockpile_added(id: String, data: Dictionary):
 		marker.color = Color(0.9, 0.8, 0.3, 0.25)
 		marker.z_index = 1
 		add_child(marker)
+		marker.mouse_filter = Control.MOUSE_FILTER_STOP
+		marker.gui_input.connect(_on_stockpile_marker_clicked.bind(id))
 		if not client_stockpiles.has(id):
 			client_stockpiles[id] = []
 		client_stockpiles[id].append(marker)
@@ -423,6 +446,25 @@ func _on_villager_sync(villagers: Dictionary):
 			add_child(node)
 			node.setup(job)
 			client_villagers[id] = node
+			node.gui_input.connect(_on_villager_clicked.bind(id, v))
+	# Remove villagers that are no longer present
+	for id in client_villagers.keys():
+		if not villagers.has(id):
+			if is_instance_valid(client_villagers[id]):
+				client_villagers[id].queue_free()
+			client_villagers.erase(id)
+
+func _on_villager_clicked(event: InputEvent, id: String, data: Dictionary):
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		selected_entity = {"type": "villager", "id": id}
+		if info_panel:
+			info_panel.show_villager(id, data)
+
+func _on_stockpile_marker_clicked(event: InputEvent, id: String):
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		selected_entity = {"type": "stockpile", "id": id}
+		if info_panel:
+			info_panel.show_stockpile(id, Network.last_full_sync.get("stockpiles", {}).get(id, {}))
 
 func _on_reset_requested():
 	print("Client: requesting world reset")
@@ -431,3 +473,27 @@ func _on_reset_requested():
 func _on_spawn_requested():
 	print("Client: requesting villager spawn")
 	Network.ask_spawn_villager()
+
+func _get_stockpile_at_tile(tile: Vector2i) -> String:
+	for stock_id in Network.last_full_sync.get("stockpiles", {}):
+		var data: Dictionary = Network.last_full_sync["stockpiles"][stock_id]
+		for key in data.get("zone", []):
+			var parts: PackedStringArray = key.split(",")
+			var pos := Vector2i(int(parts[0]), int(parts[1]))
+			if pos == tile:
+				return stock_id
+	return ""
+
+func _get_villager_at_tile(tile: Vector2i) -> String:
+	var best_id := ""
+	var best_dist := 999999.0
+	var tile_center := Vector2(tile.x * TILE_SIZE + TILE_SIZE / 2, tile.y * TILE_SIZE + TILE_SIZE / 2)
+	for id in client_villagers:
+		var node = client_villagers[id]
+		if not is_instance_valid(node):
+			continue
+		var dist: float = node.global_position.distance_to(tile_center)
+		if dist < TILE_SIZE and dist < best_dist:
+			best_dist = dist
+			best_id = id
+	return best_id
