@@ -59,6 +59,7 @@ func setup_client():
 	Network.world_reset.connect(_on_world_reset)
 	build_ui.build_type_selected.connect(_on_build_type_selected)
 	build_ui.reset_requested.connect(_on_reset_requested)
+	build_ui.spawn_requested.connect(_on_spawn_requested)
 
 var selected_build_type: int = -1
 
@@ -158,6 +159,10 @@ func _handle_camera_input(delta):
 func _input(event):
 	if is_server:
 		return
+	if event is InputEventMouseButton or event is InputEventMouseMotion:
+		var hovered := get_viewport().gui_get_hovered_control()
+		if hovered != null and hovered != tile_map:
+			return
 	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
 			camera.zoom = camera.zoom * (1.0 + zoom_speed)
@@ -301,6 +306,10 @@ func _on_villager_sync(villagers: Dictionary):
 func _on_reset_requested():
 	print("Client: requesting world reset")
 	Network.ask_reset_world()
+
+func _on_spawn_requested():
+	print("Client: requesting villager spawn")
+	Network.ask_spawn_villager()
 
 func _on_world_reset(data: Dictionary):
 	print("Client: world reset received, clearing local state")

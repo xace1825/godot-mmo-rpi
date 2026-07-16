@@ -16,8 +16,13 @@ func _physics_process(delta):
 		_tick()
 
 func _ready():
-	if not multiplayer.is_server():
-		set_physics_process(false)
+	set_physics_process(false)
+	multiplayer.peer_connected.connect(_on_peer_connected)
+
+func _on_peer_connected(id: int):
+	if multiplayer.is_server():
+		set_physics_process(true)
+		print("JobManager enabled for server")
 
 func _tick():
 	_process_builders()

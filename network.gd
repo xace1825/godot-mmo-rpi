@@ -128,6 +128,27 @@ func broadcast_building_completed(pos: Vector2i, type_id: int):
 		rpc("place_building", pos, type_id)
 		_broadcast_state()
 
+func ask_spawn_villager():
+	if multiplayer.is_server():
+		return
+	if not _is_peer_connected():
+		push_warning("Cannot ask_spawn_villager: peer not connected")
+		return
+	rpc_id(1, "request_spawn_villager")
+
+@rpc("any_peer", "call_remote", "reliable")
+func request_spawn_villager():
+	if not multiplayer.is_server():
+		return
+	var peer_id := multiplayer.get_remote_sender_id()
+	print("Server: spawn villager requested by peer ", peer_id)
+	var pos := GameState.random_walkable_tile()
+	var id := GameState.spawn_villager(pos, "idle")
+	if id >= 0:
+		print("Server: spawned villager ", id, " at ", pos, " for peer ", peer_id)
+		_broadcast_state()
+		rpc("sync_villagers", GameState.villagers.duplicate())
+
 func ask_reset_world():
 	if multiplayer.is_server():
 		return

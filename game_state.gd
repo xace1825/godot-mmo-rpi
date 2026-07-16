@@ -183,6 +183,35 @@ func add_stockpile(topleft: Vector2i, size: Vector2i) -> bool:
 	Network.broadcast_stockpile_added(stock_id, stockpiles[stock_id])
 	return true
 
+func spawn_villager(pos: Vector2i, job: String = "idle") -> int:
+	var id := next_villager_id
+	next_villager_id += 1
+	var v := {
+		"id": id,
+		"name": "Villager %d" % id,
+		"pos": {"x": pos.x, "y": pos.y},
+		"home": {"x": pos.x, "y": pos.y},
+		"workplace": {"x": pos.x, "y": pos.y},
+		"job": job,
+		"state": "idle",
+		"progress": 0.0,
+		"carrying": {"resource": "", "amount": 0},
+		"target_blueprint": "",
+		"building_type": -1
+	}
+	villagers[str(id)] = v
+	print("Server: spawned villager ", id, " at ", pos.x, ",", pos.y, " job ", job)
+	return id
+
+func random_walkable_tile() -> Vector2i:
+	for i in range(1000):
+		var x := randi() % PlanetGenerator.WORLD_SIZE
+		var y := randi() % PlanetGenerator.WORLD_SIZE
+		var tile := Vector2i(x, y)
+		if can_build_at(tile):
+			return tile
+	return Vector2i(PlanetGenerator.WORLD_SIZE / 2, PlanetGenerator.WORLD_SIZE / 2)
+
 func spawn_builder_for_blueprint(pos: Vector2i) -> Dictionary:
 	var id := next_villager_id
 	next_villager_id += 1
@@ -233,9 +262,6 @@ func complete_blueprint(pos: Vector2i) -> bool:
 	var completed_type: int = bp["type"]
 	blueprints.erase(key)
 	_recalc_total_resources()
-	# Only spawn workers for production stations, not walls/doors/floors/stockpiles
-	if completed_type < PlanetGenerator.BuildingType.WALL:
-		spawn_villagers_for_station(pos, completed_type)
 	print("Server: blueprint completed at ", key, " type ", completed_type)
 	recalculate_rooms()
 	Network.broadcast_building_completed(pos, completed_type)
