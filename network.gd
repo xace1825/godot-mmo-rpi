@@ -169,6 +169,7 @@ func request_reset_world():
 		return
 	print("Server: reset world requested by peer ", multiplayer.get_remote_sender_id())
 	GameState.reset_world()
+	GameState.create_default_stockpile()
 	if multiplayer.has_multiplayer_peer():
 		rpc("sync_world_reset", GameState.get_world_data())
 

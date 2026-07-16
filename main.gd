@@ -240,6 +240,8 @@ func _on_building_placed(pos: Vector2i, type_id: int):
 	client_buildings[pos] = b
 	print("Client placed building at ", pos, " type ", type_id)
 
+var camera_initialized: bool = false
+
 func _on_full_sync(data: Dictionary):
 	print("Client received full sync with ", data["buildings"].size(), " buildings, ", data.get("blueprints", {}).size(), " blueprints, ", data.get("stockpiles", {}).size(), " stockpiles")
 	var seed_value := data.get("seed", 12345) as int
@@ -258,7 +260,7 @@ func _on_full_sync(data: Dictionary):
 		_on_blueprint_placed(pos, data["blueprints"][pos_str]["type"])
 	for stock_id in data.get("stockpiles", {}):
 		_on_stockpile_added(stock_id, data["stockpiles"][stock_id])
-	if first_building_pos.x >= 0 and camera:
+	if not camera_initialized and first_building_pos.x >= 0 and camera:
 		var target := Vector2(first_building_pos.x * TILE_SIZE + TILE_SIZE / 2, first_building_pos.y * TILE_SIZE + TILE_SIZE / 2)
 		camera.global_position = target
 		camera.position = target
@@ -268,8 +270,9 @@ func _on_full_sync(data: Dictionary):
 		camera.reset_smoothing()
 		camera_frames = 999
 		chunk_manager.update(target)
+		camera_initialized = true
 	else:
-		chunk_manager.update(Vector2(WORLD_SIZE * TILE_SIZE / 2, WORLD_SIZE * TILE_SIZE / 2))
+		chunk_manager.update(camera.global_position if camera else Vector2(WORLD_SIZE * TILE_SIZE / 2, WORLD_SIZE * TILE_SIZE / 2))
 	_on_villager_sync(data.get("villagers", {}))
 	_on_resource_sync(data.get("resources", {"wood": 0, "food": 0, "stone": 0}))
 

@@ -272,6 +272,9 @@ func complete_blueprint(pos: Vector2i) -> bool:
 	var completed_type: int = bp["type"]
 	blueprints.erase(key)
 	_recalc_total_resources()
+	# DISABLED: villagers are now spawned manually via SPAWN button
+	# if completed_type < PlanetGenerator.BuildingType.WALL:
+	# 	spawn_villagers_for_station(pos, completed_type)
 	print("Server: blueprint completed at ", key, " type ", completed_type)
 	recalculate_rooms()
 	Network.broadcast_building_completed(pos, completed_type)
