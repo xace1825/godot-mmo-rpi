@@ -4,7 +4,7 @@ const TICK_RATE: float = 1.0
 const WORK_UNITS_PER_TICK: float = 0.33
 const BUILD_UNITS_PER_TICK: float = 0.25
 const PRODUCTION_AMOUNT: int = 1
-const VILLAGER_MOVE_SPEED: float = 2.0  # tiles per second
+const VILLAGER_MOVE_SPEED: float = 1.0  # tiles per second (one tile per tick, smooth continuous movement)
 const SYNC_INTERVAL: float = 0.1
 
 var tick_timer: float = 0.0
