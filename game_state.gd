@@ -273,13 +273,16 @@ func complete_blueprint(pos: Vector2i) -> bool:
 		for res: String in cost:
 			stock["resources"][res] -= cost[res] - bp["paid"].get(res, 0)
 			bp["paid"][res] = cost[res]
+		Network.broadcast_stockpile_update(stock_id, stock.duplicate())
 	
 	buildings[key] = bp["type"]
 	var completed_type: int = bp["type"]
 	blueprints.erase(key)
 	_recalc_total_resources()
 	if PlanetGenerator.is_station(completed_type):
-		spawn_villagers_for_station(pos, completed_type)
+		# DISABLED: villagers are spawned manually via SPAWN button
+		# spawn_villagers_for_station(pos, completed_type)
+		pass
 	print("Server: blueprint completed at ", key, " type ", completed_type)
 	recalculate_rooms()
 	Network.broadcast_building_completed(pos, completed_type)
@@ -302,6 +305,7 @@ func pay_blueprint_cost(pos: Vector2i) -> bool:
 			bp["paid"][res] = bp["paid"].get(res, 0) + needed
 	_recalc_total_resources()
 	print("Server: blueprint ", key, " paid using stockpile ", stock_id, ", remaining stockpile resources: ", stock["resources"])
+	Network.broadcast_stockpile_update(stock_id, stock.duplicate())
 	return true
 
 func add_building(pos: Vector2i, type_id: int = -1) -> int:
@@ -379,6 +383,7 @@ func deposit_to_nearest_stockpile(pos: Vector2i, resource: String, amount: int) 
 	stock["resources"][resource] += amount
 	_recalc_total_resources()
 	Network.broadcast_resource_sync()
+	Network.broadcast_stockpile_update(stock_id, stock.duplicate())
 	return true
 
 func _recalc_total_resources():

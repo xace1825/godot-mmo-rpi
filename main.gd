@@ -20,6 +20,7 @@ var client_blueprints: Dictionary = {}
 var client_stockpiles: Dictionary = {}
 var client_villagers: Dictionary = {}
 var client_resources: Dictionary = {"wood": 0, "food": 0, "stone": 0}
+var client_stockpile_labels: Dictionary = {}
 var is_server: bool = false
 var camera_frames: int = 0
 var camera_speed: float = 1200.0
@@ -317,6 +318,12 @@ func _on_world_reset(data: Dictionary):
 			if is_instance_valid(marker):
 				marker.queue_free()
 	client_stockpiles.clear()
+	# Clear stockpile labels
+	for id in client_stockpile_labels:
+		var label = client_stockpile_labels[id]
+		if is_instance_valid(label):
+			label.queue_free()
+	client_stockpile_labels.clear()
 	# Clear villagers
 	for id in client_villagers:
 		if is_instance_valid(client_villagers[id]):
@@ -329,14 +336,40 @@ func _on_world_reset(data: Dictionary):
 
 func _on_resource_sync(resources: Dictionary):
 	client_resources = resources.duplicate()
+	_update_stockpile_labels()
 	print("Client resources: wood=", client_resources.get("wood", 0), " food=", client_resources.get("food", 0), " stone=", client_resources.get("stone", 0))
 
+func _update_stockpile_labels():
+	for stock_id in client_stockpile_labels:
+		var label: Label = client_stockpile_labels[stock_id]
+		if label == null or not is_instance_valid(label):
+			continue
+		var data = Network.last_full_sync.get("stockpiles", {}).get(stock_id, null)
+		if data == null:
+			continue
+		var res: Dictionary = data.get("resources", {})
+		var text := "Д:%d К:%d Е:%d" % [res.get("wood", 0), res.get("stone", 0), res.get("food", 0)]
+		label.text = text
+
 func _on_stockpile_added(id: String, data: Dictionary):
-	print("Client: stockpile added ", id)
-	# Draw a semi-transparent yellow overlay over each tile
+	print("Client: stockpile added/updated ", id)
+	if not Network.last_full_sync.has("stockpiles"):
+		Network.last_full_sync["stockpiles"] = {}
+	Network.last_full_sync["stockpiles"][id] = data
+	
+	if client_stockpiles.has(id):
+		_update_stockpile_labels()
+		return
+	
+	var center_x: float = 0.0
+	var center_y: float = 0.0
+	var count: int = 0
 	for key in data.get("zone", []):
 		var parts: PackedStringArray = key.split(",")
 		var pos := Vector2i(int(parts[0]), int(parts[1]))
+		center_x += pos.x
+		center_y += pos.y
+		count += 1
 		var marker := ColorRect.new()
 		marker.position = Vector2(pos.x * TILE_SIZE + 1, pos.y * TILE_SIZE + 1)
 		marker.size = Vector2(TILE_SIZE - 2, TILE_SIZE - 2)
@@ -346,6 +379,32 @@ func _on_stockpile_added(id: String, data: Dictionary):
 		if not client_stockpiles.has(id):
 			client_stockpiles[id] = []
 		client_stockpiles[id].append(marker)
+	if count > 0:
+		center_x = center_x / count * TILE_SIZE + TILE_SIZE / 2
+		center_y = center_y / count * TILE_SIZE
+		var bg := ColorRect.new()
+		bg.position = Vector2(center_x - 40, center_y - 34)
+		bg.size = Vector2(80, 18)
+		bg.color = Color(0, 0, 0, 0.7)
+		bg.z_index = 9
+		add_child(bg)
+		client_stockpiles[id].append(bg)
+		
+		var label := Label.new()
+		label.text = "Д:0 К:0 Е:0"
+		label.position = Vector2(center_x - 40, center_y - 34)
+		label.size = Vector2(80, 18)
+		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		label.add_theme_font_size_override("font_size", 14)
+		label.add_theme_color_override("font_color", Color(1, 1, 1))
+		label.add_theme_color_override("font_shadow_color", Color(0, 0, 0))
+		label.add_theme_constant_override("shadow_offset_x", 1)
+		label.add_theme_constant_override("shadow_offset_y", 1)
+		label.z_index = 10
+		add_child(label)
+		client_stockpile_labels[id] = label
+		_update_stockpile_labels()
 
 func _on_villager_sync(villagers: Dictionary):
 	for id in villagers:

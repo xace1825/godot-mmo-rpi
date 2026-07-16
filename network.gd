@@ -11,6 +11,7 @@ signal world_reset(data: Dictionary)
 const DEFAULT_PORT: int = 7777
 
 var peer: ENetMultiplayerPeer
+var last_full_sync: Dictionary = {}
 
 func _ready():
 	multiplayer.peer_connected.connect(_on_peer_connected)
@@ -46,6 +47,7 @@ func is_server() -> bool:
 
 @rpc("authority", "call_remote", "reliable")
 func sync_world_state(data: Dictionary):
+	last_full_sync = data
 	full_sync.emit(data)
 
 @rpc("authority", "call_remote", "reliable")
@@ -182,6 +184,10 @@ func broadcast_stockpile_added(id: String, data: Dictionary):
 	if multiplayer.has_multiplayer_peer():
 		rpc("sync_stockpile", id, data.duplicate())
 		_broadcast_state()
+
+func broadcast_stockpile_update(id: String, data: Dictionary):
+	if multiplayer.has_multiplayer_peer():
+		rpc("sync_stockpile", id, data.duplicate())
 
 func _on_peer_connected(id: int):
 	print("Peer connected: ", id)
