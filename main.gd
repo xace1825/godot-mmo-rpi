@@ -350,9 +350,10 @@ func _on_stockpile_added(id: String, data: Dictionary):
 func _on_villager_sync(villagers: Dictionary):
 	for id in villagers:
 		var v = villagers[id] as Dictionary
-		var pos := Vector2i(int(v["pos"]["x"]), int(v["pos"]["y"]))
+		var x := float(v["pos"]["x"])
+		var y := float(v["pos"]["y"])
+		var target := Vector2(x * TILE_SIZE + TILE_SIZE / 2, y * TILE_SIZE + TILE_SIZE / 2)
 		var job := v["job"] as String
-		var target := Vector2(pos.x * TILE_SIZE + TILE_SIZE / 2, pos.y * TILE_SIZE + TILE_SIZE / 2)
 		if client_villagers.has(id):
 			var node = client_villagers[id]
 			node.set_next_position(target)
