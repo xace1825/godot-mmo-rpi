@@ -261,26 +261,25 @@ func complete_blueprint(pos: Vector2i) -> bool:
 			break
 	
 	if not already_paid:
-		var stock_id: String = find_nearest_stockpile(pos)
+		var stock_id: String = find_stockpile_with_resources(pos, cost, bp["paid"])
 		if stock_id == "":
 			print("Server: no stockpile available to complete blueprint ", key)
 			return false
 		var stock: Dictionary = stockpiles[stock_id]
 		for res: String in cost:
-			if stock["resources"][res] < cost[res]:
+			if stock["resources"][res] < cost[res] - bp["paid"].get(res, 0):
 				print("Server: stockpile ", stock_id, " lacks ", res, " for blueprint ", key)
 				return false
 		for res: String in cost:
-			stock["resources"][res] -= cost[res]
+			stock["resources"][res] -= cost[res] - bp["paid"].get(res, 0)
 			bp["paid"][res] = cost[res]
 	
 	buildings[key] = bp["type"]
 	var completed_type: int = bp["type"]
 	blueprints.erase(key)
 	_recalc_total_resources()
-	# DISABLED: villagers are now spawned manually via SPAWN button
-	# if completed_type < PlanetGenerator.BuildingType.WALL:
-	# 	spawn_villagers_for_station(pos, completed_type)
+	if PlanetGenerator.is_station(completed_type):
+		spawn_villagers_for_station(pos, completed_type)
 	print("Server: blueprint completed at ", key, " type ", completed_type)
 	recalculate_rooms()
 	Network.broadcast_building_completed(pos, completed_type)
@@ -292,20 +291,17 @@ func pay_blueprint_cost(pos: Vector2i) -> bool:
 		return false
 	var bp: Dictionary = blueprints[key]
 	var cost: Dictionary = bp.get("cost", {})
-	var stock_id: String = find_nearest_stockpile(pos)
+	var stock_id: String = find_stockpile_with_resources(pos, cost, bp["paid"])
 	if stock_id == "":
 		return false
 	var stock: Dictionary = stockpiles[stock_id]
-	for res: String in cost:
-		if stock["resources"][res] < cost[res] - bp["paid"].get(res, 0):
-			return false
 	for res: String in cost:
 		var needed: int = cost[res] - bp["paid"].get(res, 0)
 		if needed > 0:
 			stock["resources"][res] -= needed
 			bp["paid"][res] = bp["paid"].get(res, 0) + needed
 	_recalc_total_resources()
-	print("Server: blueprint ", key, " paid, remaining stockpile resources: ", stock["resources"])
+	print("Server: blueprint ", key, " paid using stockpile ", stock_id, ", remaining stockpile resources: ", stock["resources"])
 	return true
 
 func add_building(pos: Vector2i, type_id: int = -1) -> int:
@@ -340,6 +336,27 @@ func spawn_villagers_for_station(pos: Vector2i, station_type: int) -> Array:
 		spawned.append(v)
 		print("Server: spawned villager ", id, " as ", job_type, " at ", key)
 	return spawned
+
+func find_stockpile_with_resources(pos: Vector2i, cost: Dictionary, paid: Dictionary) -> String:
+	var best_id := ""
+	var best_dist := 999999.0
+	for stock_id: String in stockpiles:
+		var stock: Dictionary = stockpiles[stock_id]
+		var can_pay := true
+		for res: String in cost:
+			var needed: int = cost[res] - paid.get(res, 0)
+			if needed > 0 and stock["resources"][res] < needed:
+				can_pay = false
+				break
+		if not can_pay:
+			continue
+		var cx: float = stock["topleft"]["x"] + stock["size"]["x"] / 2.0
+		var cy: float = stock["topleft"]["y"] + stock["size"]["y"] / 2.0
+		var dist := sqrt(pow(cx - pos.x, 2) + pow(cy - pos.y, 2))
+		if dist < best_dist:
+			best_dist = dist
+			best_id = stock_id
+	return best_id
 
 func find_nearest_stockpile(pos: Vector2i) -> String:
 	var best_id := ""
@@ -380,11 +397,20 @@ func get_stockpile_at(pos: Vector2i) -> String:
 
 func get_world_data() -> Dictionary:
 	ensure_world_generated()
+	var stock_copy := {}
+	for sid: String in stockpiles:
+		var s: Dictionary = stockpiles[sid]
+		stock_copy[sid] = {
+			"topleft": s["topleft"].duplicate(),
+			"size": s["size"].duplicate(),
+			"zone": s["zone"].duplicate(),
+			"resources": s["resources"].duplicate()
+		}
 	return {
 		"seed": world_seed,
 		"buildings": buildings.duplicate(),
 		"blueprints": blueprints.duplicate(),
-		"stockpiles": stockpiles.duplicate(),
+		"stockpiles": stock_copy,
 		"resources": resources.duplicate(),
 		"villagers": villagers.duplicate()
 	}
@@ -420,7 +446,6 @@ func create_default_stockpile() -> bool:
 				if abs(dx) != radius and abs(dy) != radius:
 					continue
 				var pos := Vector2i(half + dx, half + dy)
-				# Check 3x3 area is buildable
 				var ok := true
 				for sy in range(3):
 					for sx in range(3):

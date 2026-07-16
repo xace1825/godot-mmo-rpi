@@ -75,7 +75,10 @@ func _process_builders():
 		
 		var bp = GameState.blueprints[bp_key] as Dictionary
 		var pos = Vector2i(int(bp["pos"]["x"]), int(bp["pos"]["y"]))
+		var cost: Dictionary = bp["cost"]
+		var paid: Dictionary = bp["paid"]
 		var current_tile = Vector2i(int(round(v["pos"]["x"])), int(round(v["pos"]["y"])))
+		var already_paid := _is_paid(cost, paid)
 		
 		match v["state"]:
 			"moving_to_blueprint":
@@ -88,7 +91,7 @@ func _process_builders():
 				bp["progress"] += BUILD_UNITS_PER_TICK
 				if bp["progress"] >= 1.0:
 					bp["progress"] = 1.0
-					if GameState.pay_blueprint_cost(pos):
+					if already_paid:
 						if GameState.complete_blueprint(pos):
 							v["target_blueprint"] = ""
 							v["state"] = "idle"
@@ -102,7 +105,11 @@ func _process_builders():
 						v["state"] = "moving_to_stockpile"
 						print("Server: builder ", id, " needs resources for blueprint at ", pos)
 			"moving_to_stockpile":
-				var stock_id = GameState.find_nearest_stockpile(pos)
+				if already_paid:
+					v["state"] = "returning_to_blueprint"
+					v["to_pos"] = _step_toward_dict(current_tile, pos)
+					continue
+				var stock_id = GameState.find_stockpile_with_resources(pos, cost, paid)
 				if stock_id == "":
 					v["state"] = "waiting_resources"
 					continue
@@ -126,6 +133,12 @@ func _process_builders():
 			"waiting_resources":
 				# Retry moving to stockpile next tick in case resources arrived
 				v["state"] = "moving_to_stockpile"
+
+func _is_paid(cost: Dictionary, paid: Dictionary) -> bool:
+	for res: String in cost:
+		if paid.get(res, 0) < cost[res]:
+			return false
+	return true
 
 func _step_toward_dict(from_pos: Vector2i, to_pos: Vector2i) -> Dictionary:
 	var dx = signi(to_pos.x - from_pos.x)
