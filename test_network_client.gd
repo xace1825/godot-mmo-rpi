@@ -31,10 +31,22 @@ func _on_sync(data: Dictionary):
     print("Full sync received with ", data["buildings"].size(), " buildings, ", data.get("blueprints", {}).size(), " blueprints, ", data.get("stockpiles", {}).size(), " stockpiles")
     seed_value = data.get("seed", 12345)
     world = PlanetGenerator.generate_world(seed_value)
-    received_buildings = data.get("buildings", {})
-    received_blueprints = data.get("blueprints", {})
-    received_stockpiles = data.get("stockpiles", {})
-    received_villagers = data.get("villagers", {})
+    received_buildings.clear()
+    var bldg = data.get("buildings", {}) as Dictionary
+    for k in bldg:
+        received_buildings[k] = bldg[k]
+    received_blueprints.clear()
+    var bps = data.get("blueprints", {}) as Dictionary
+    for k in bps:
+        received_blueprints[k] = bps[k]
+    received_stockpiles.clear()
+    var stocks = data.get("stockpiles", {}) as Dictionary
+    for k in stocks:
+        received_stockpiles[k] = stocks[k]
+    received_villagers.clear()
+    var villagers = data.get("villagers", {}) as Dictionary
+    for k in villagers:
+        received_villagers[k] = villagers[k]
     received_resources = data.get("resources", {"wood": 0, "food": 0, "stone": 0})
     if not setup_done:
         setup_done = true
@@ -144,10 +156,17 @@ func _run_tests(data: Dictionary):
     for i in range(3):
         Network.ask_spawn_villager()
         await get_tree().create_timer(0.5).timeout
-    await get_tree().create_timer(10.0).timeout
     
+    # Active wait for sawmill completion
     var key = "%d,%d" % [valid_pos.x, valid_pos.y]
-    if received_buildings.has(key) and received_buildings[key] == PlanetGenerator.BuildingType.SAWMILL:
+    var sawmill_built := false
+    for i in range(60):
+        await get_tree().create_timer(0.5).timeout
+        print("TEST: waiting sawmill ", key, " buildings=", received_buildings)
+        if received_buildings.has(key) and received_buildings[key] == PlanetGenerator.BuildingType.SAWMILL:
+            sawmill_built = true
+            break
+    if sawmill_built:
         print("TEST PASS: sawmill built")
     else:
         print("TEST FAIL: sawmill not built, type=", received_buildings.get(key, -1))
@@ -168,21 +187,44 @@ func _run_tests(data: Dictionary):
     else:
         print("TEST INFO: no wood produced yet, workers may still be walking")
     
-    # Test outdoor station speed: build a second sawmill outside any room
-    var outdoor_pos := _find_buildable_zone_center(3)
-    outdoor_pos = Vector2i(valid_pos.x + 10, valid_pos.y)
-    while not PlanetGenerator.is_buildable(world[outdoor_pos.x][outdoor_pos.y]) or outdoor_pos == valid_pos:
-        outdoor_pos.x += 1
-    print("TEST: placing outdoor sawmill at ", outdoor_pos)
-    Network.ask_build(outdoor_pos, PlanetGenerator.BuildingType.SAWMILL)
-    await get_tree().create_timer(5.0).timeout
-    var out_key := "%d,%d" % [outdoor_pos.x, outdoor_pos.y]
-    if received_buildings.has(out_key) and received_buildings[out_key] == PlanetGenerator.BuildingType.SAWMILL:
-        print("TEST PASS: outdoor sawmill built")
-    else:
-        print("TEST INFO: outdoor sawmill not completed")
+    # Step 4: Build a second sawmill and verify villagers split between stations
+    var sawmill2_pos := _find_buildable_zone_center(3)
+    sawmill2_pos = Vector2i(valid_pos.x + 8, valid_pos.y)
+    while not PlanetGenerator.is_buildable(world[sawmill2_pos.x][sawmill2_pos.y]) or sawmill2_pos == valid_pos:
+        sawmill2_pos.x += 1
+    print("TEST: placing second sawmill at ", sawmill2_pos)
+    Network.ask_build(sawmill2_pos, PlanetGenerator.BuildingType.SAWMILL)
     
-    await get_tree().create_timer(3.0).timeout
+    var key2 := "%d,%d" % [sawmill2_pos.x, sawmill2_pos.y]
+    var sawmill2_built := false
+    for i in range(80):
+        await get_tree().create_timer(0.5).timeout
+        if received_buildings.has(key2) and received_buildings[key2] == PlanetGenerator.BuildingType.SAWMILL:
+            sawmill2_built = true
+            break
+    if sawmill2_built:
+        print("TEST PASS: second sawmill built")
+    else:
+        print("TEST INFO: second sawmill not completed")
+    
+    # Wait and check workers are split between sawmills
+    await get_tree().create_timer(10.0).timeout
+    var sawmill1_workers := 0
+    var sawmill2_workers := 0
+    for vid in received_villagers:
+        var vw = received_villagers[vid] as Dictionary
+        var vwp = vw.get("workplace", {})
+        var wpx := int(vwp.get("x", -1))
+        var wpy := int(vwp.get("y", -1))
+        if wpx == valid_pos.x and wpy == valid_pos.y:
+            sawmill1_workers += 1
+        elif wpx == sawmill2_pos.x and wpy == sawmill2_pos.y:
+            sawmill2_workers += 1
+    print("TEST: sawmill1 workers=", sawmill1_workers, " sawmill2 workers=", sawmill2_workers)
+    if sawmill1_workers >= 1 and sawmill2_workers >= 1:
+        print("TEST PASS: villagers split between sawmills")
+    else:
+        print("TEST INFO: villagers not yet split, sawmill1=", sawmill1_workers, " sawmill2=", sawmill2_workers)
     
     # Test blocked build on water
     var water_pos := Vector2i(10, 10)

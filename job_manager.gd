@@ -4,7 +4,7 @@ const TICK_RATE: float = 1.0
 const WORK_UNITS_PER_TICK: float = 0.33
 const BUILD_UNITS_PER_TICK: float = 0.25
 const PRODUCTION_AMOUNT: int = 1
-const VILLAGER_MOVE_SPEED: float = 1.0  # tiles per second (one tile per tick, smooth continuous movement)
+const VILLAGER_MOVE_SPEED: float = 1.0
 const SYNC_INTERVAL: float = 0.1
 
 var tick_timer: float = 0.0
@@ -13,16 +13,12 @@ var sync_timer: float = 0.0
 func _physics_process(delta):
 	if not multiplayer.is_server():
 		return
-	
-	# Smooth movement interpolation on server
 	_update_villager_movement(delta)
-	
 	sync_timer += delta
 	if sync_timer >= SYNC_INTERVAL:
 		sync_timer -= SYNC_INTERVAL
 		if GameState.villagers.size() > 0:
 			Network.rpc("sync_villagers", GameState.villagers.duplicate())
-	
 	tick_timer += delta
 	if tick_timer >= TICK_RATE:
 		tick_timer -= TICK_RATE
@@ -64,7 +60,8 @@ func _assign_idle_villagers():
 		var v = GameState.villagers[id] as Dictionary
 		if v["job"] != "idle":
 			continue
-		var bp_key := _find_blueprint()
+		var sid := str(id)
+		var bp_key := _find_blueprint(sid)
 		if bp_key != "":
 			var bp = GameState.blueprints[bp_key] as Dictionary
 			var pos = Vector2i(int(bp["pos"]["x"]), int(bp["pos"]["y"]))
@@ -74,7 +71,7 @@ func _assign_idle_villagers():
 			v["workplace"] = {"x": pos.x, "y": pos.y}
 			print("Server: idle villager ", id, " assigned as builder for ", bp_key)
 			continue
-		var station_pos := _find_station_without_worker()
+		var station_pos := _find_station_without_worker(sid)
 		if station_pos != Vector2i(-1, -1):
 			var key: String = _pos_key(station_pos)
 			var station_type: int = GameState.buildings[key]
@@ -85,7 +82,7 @@ func _assign_idle_villagers():
 				v["state"] = "moving_to_work"
 				print("Server: idle villager ", id, " assigned as ", job, " at ", station_pos)
 
-func _find_station_without_worker() -> Vector2i:
+func _find_station_without_worker(exclude_id: String = "") -> Vector2i:
 	for key: String in GameState.buildings:
 		var type_id: int = GameState.buildings[key]
 		if not PlanetGenerator.is_station(type_id):
@@ -96,14 +93,38 @@ func _find_station_without_worker() -> Vector2i:
 		var slots: int = PlanetGenerator.get_job_slots(type_id)
 		var current: int = 0
 		for vid in GameState.villagers:
+			if str(vid) == exclude_id:
+				continue
 			var v = GameState.villagers[vid] as Dictionary
-			var wp = v.get("workplace", {})
-			if v["job"] == job_type and wp.get("x", -1) == int(key.split(",")[0]) and wp.get("y", -1) == int(key.split(",")[1]):
+			var wp = v.get("workplace", {}) as Dictionary
+			var vjob: String = v["job"]
+			var at_station: bool = wp.get("x", -1) == int(key.split(",")[0]) and wp.get("y", -1) == int(key.split(",")[1])
+			if at_station and (vjob == job_type or v["state"] == "moving_to_work"):
 				current += 1
 		if current < slots:
 			var parts := key.split(",")
 			return Vector2i(int(parts[0]), int(parts[1]))
 	return Vector2i(-1, -1)
+
+func _find_blueprint(exclude_id: String = "") -> String:
+	for key in GameState.blueprints:
+		if _is_blueprint_reserved(key, exclude_id):
+			continue
+		return key
+	return ""
+
+func _is_blueprint_reserved(key: String, exclude_id: String = "") -> bool:
+	for vid in GameState.villagers:
+		if str(vid) == exclude_id:
+			continue
+		var v = GameState.villagers[vid] as Dictionary
+		if v.get("target_blueprint", "") == key:
+			return true
+		var wp = v.get("workplace", {}) as Dictionary
+		var parts := key.split(",")
+		if wp.get("x", -1) == int(parts[0]) and wp.get("y", -1) == int(parts[1]) and v["job"] == "builder":
+			return true
+	return false
 
 func _pos_key(pos: Vector2i) -> String:
 	return "%d,%d" % [pos.x, pos.y]
@@ -113,14 +134,21 @@ func _process_builders():
 		var v = GameState.villagers[id] as Dictionary
 		if v["job"] != "builder":
 			continue
+		var sid := str(id)
 		var bp_key: String = v.get("target_blueprint", "")
 		if bp_key == "" or not GameState.blueprints.has(bp_key):
-			bp_key = _find_blueprint()
+			bp_key = _find_blueprint(sid)
 			if bp_key == "":
+				v["job"] = "idle"
 				v["state"] = "idle"
+				v["workplace"] = {}
+				v["target_blueprint"] = ""
 				continue
 			v["target_blueprint"] = bp_key
 			v["state"] = "moving_to_blueprint"
+			var bp2 = GameState.blueprints[bp_key] as Dictionary
+			var pos2 = Vector2i(int(bp2["pos"]["x"]), int(bp2["pos"]["y"]))
+			v["workplace"] = {"x": pos2.x, "y": pos2.y}
 			print("Server: builder ", id, " assigned to blueprint ", bp_key)
 		
 		var bp = GameState.blueprints[bp_key] as Dictionary
@@ -183,7 +211,6 @@ func _process_builders():
 				elif v["from_pos"] == v["to_pos"]:
 					v["to_pos"] = _step_toward_dict(current_tile, pos)
 			"waiting_resources":
-				# Retry moving to stockpile next tick in case resources arrived
 				v["state"] = "moving_to_stockpile"
 
 func _is_paid(cost: Dictionary, paid: Dictionary) -> bool:
@@ -202,11 +229,6 @@ func _step_toward_dict(from_pos: Vector2i, to_pos: Vector2i) -> Dictionary:
 			dx = 0
 	return {"x": from_pos.x + dx, "y": from_pos.y + dy}
 
-func _find_blueprint() -> String:
-	for key in GameState.blueprints:
-		return key
-	return ""
-
 func _process_workers():
 	for id in GameState.villagers:
 		var v = GameState.villagers[id] as Dictionary
@@ -217,7 +239,6 @@ func _process_workers():
 		var workplace := Vector2i(int(v["workplace"]["x"]), int(v["workplace"]["y"]))
 		match v["state"]:
 			"idle", "working", "moving_to_work":
-				# Walk to workplace if not there
 				if current_tile != workplace:
 					if v["from_pos"] == v["to_pos"]:
 						v["to_pos"] = _step_toward_dict(current_tile, workplace)
@@ -236,7 +257,6 @@ func _process_workers():
 			"hauling":
 				var stock_id := GameState.find_nearest_stockpile(workplace)
 				if stock_id == "":
-					# No stockpile yet; keep carrying and retry
 					v["state"] = "hauling"
 					continue
 				var stock = GameState.stockpiles[stock_id]

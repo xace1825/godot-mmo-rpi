@@ -81,7 +81,7 @@ func _on_stockpile_added(id: String, data: Dictionary):
 func _pos_key(pos: Vector2i) -> String:
     return "%d,%d" % [pos.x, pos.y]
 
-func _find_buildable_zone(size: int) -> Vector2i:
+func _find_buildable_zone(size: int, avoid_stockpiles: bool = true) -> Vector2i:
     var center: int = PlanetGenerator.WORLD_SIZE / 2
     for radius in range(0, 50):
         for dx in range(-radius, radius + 1):
@@ -94,7 +94,11 @@ func _find_buildable_zone(size: int) -> Vector2i:
                 var valid := true
                 for sx in range(size):
                     for sy in range(size):
-                        if not PlanetGenerator.is_buildable(world[top_left.x + sx][top_left.y + sy]):
+                        var pos := Vector2i(top_left.x + sx, top_left.y + sy)
+                        if not PlanetGenerator.is_buildable(world[pos.x][pos.y]):
+                            valid = false
+                            break
+                        if avoid_stockpiles and _pos_in_any_stockpile(pos):
                             valid = false
                             break
                     if not valid:
@@ -102,6 +106,15 @@ func _find_buildable_zone(size: int) -> Vector2i:
                 if valid:
                     return top_left
     return Vector2i(center, center)
+
+func _pos_in_any_stockpile(pos: Vector2i) -> bool:
+    for stock_id in received_stockpiles:
+        var sdata: Dictionary = received_stockpiles[stock_id]
+        var tl := Vector2i(int(sdata["topleft"]["x"]), int(sdata["topleft"]["y"]))
+        var size := Vector2i(int(sdata["size"]["x"]), int(sdata["size"]["y"]))
+        if pos.x >= tl.x and pos.x < tl.x + size.x and pos.y >= tl.y and pos.y < tl.y + size.y:
+            return true
+    return false
 
 func _run_phase():
     match test_phase:

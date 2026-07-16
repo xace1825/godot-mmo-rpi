@@ -119,6 +119,15 @@ func _key_pos(key: String) -> Vector2i:
 	var parts: PackedStringArray = key.split(",")
 	return Vector2i(int(parts[0]), int(parts[1]))
 
+func _pos_in_stockpile(pos: Vector2i) -> bool:
+	for stock_id: String in stockpiles:
+		var stock: Dictionary = stockpiles[stock_id]
+		var tl := Vector2i(int(stock["topleft"]["x"]), int(stock["topleft"]["y"]))
+		var size := Vector2i(int(stock["size"]["x"]), int(stock["size"]["y"]))
+		if pos.x >= tl.x and pos.x < tl.x + size.x and pos.y >= tl.y and pos.y < tl.y + size.y:
+			return true
+	return false
+
 func _pos_key(pos: Vector2i) -> String:
 	return "%d,%d" % [pos.x, pos.y]
 
@@ -127,6 +136,9 @@ func add_blueprint(pos: Vector2i, building_type: int = -1) -> int:
 	var key = _pos_key(pos)
 	if buildings.has(key) or blueprints.has(key):
 		print("Server: tile already occupied")
+		return -1
+	if _pos_in_stockpile(pos):
+		print("Server: cannot build on a stockpile tile")
 		return -1
 	if not can_build_at(pos):
 		print("Server: cannot build on this terrain")
@@ -144,11 +156,7 @@ func add_blueprint(pos: Vector2i, building_type: int = -1) -> int:
 		"paid": {"wood": 0, "stone": 0, "food": 0}
 	}
 	print("Server: added blueprint ", key, " type ", type_id, " cost ", cost)
-	# Production stations need a floor tile under them to count as indoor
-	if PlanetGenerator.is_station(type_id):
-		if not buildings.has(key):
-			buildings[key] = PlanetGenerator.BuildingType.FLOOR
-			print("Server: placed floor under station at ", pos)
+	# Do NOT place a floor tile under stations; the completed station itself is passable
 	Network.broadcast_blueprint_placed(pos, type_id)
 	return type_id
 
