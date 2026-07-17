@@ -228,14 +228,29 @@ func _process_builders():
 				if bp["progress"] >= 1.0:
 					bp["progress"] = 1.0
 					if GameState.complete_blueprint(pos):
-						v["job"] = "idle"
+						# Look for the next blueprint before going idle
+						v["progress"] = 0.0
+						v["carrying"] = {"resource": "", "amount": 0}
 						v["target_blueprint"] = ""
-						v["state"] = "idle"
 						v["workplace"] = {}
-						v["to_pos"] = v["pos"].duplicate()
-						v["from_pos"] = v["pos"].duplicate()
-						v["move_progress"] = 0.0
-						print("Server: builder ", id, " finished building at ", pos)
+						var next_bp := _find_blueprint(sid)
+						if next_bp != "":
+							var bp2 = GameState.blueprints[next_bp] as Dictionary
+							var pos2 = Vector2i(int(bp2["pos"]["x"]), int(bp2["pos"]["y"]))
+							v["target_blueprint"] = next_bp
+							v["workplace"] = {"x": pos2.x, "y": pos2.y}
+							if _is_paid(bp2["cost"], bp2["paid"]):
+								v["state"] = "moving_to_blueprint"
+							else:
+								v["state"] = "moving_to_stockpile"
+							print("Server: builder ", id, " finished ", bp_key, " and moving to next blueprint ", next_bp, " state ", v["state"])
+						else:
+							v["job"] = "idle"
+							v["state"] = "idle"
+							v["to_pos"] = v["pos"].duplicate()
+							v["from_pos"] = v["pos"].duplicate()
+							v["move_progress"] = 0.0
+							print("Server: builder ", id, " finished building at ", pos, " and found no more blueprints")
 					else:
 						v["state"] = "moving_to_stockpile"
 						print("Server: builder ", id, " could not complete, fetching resources")
