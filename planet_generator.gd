@@ -27,7 +27,9 @@ enum BuildingType {
 	WALL,
 	DOOR,
 	FLOOR,
-	STOCKPILE
+	STOCKPILE,
+	BED,
+	KITCHEN
 }
 
 const HEIGHT_DEEP: float = -0.85
@@ -143,9 +145,9 @@ enum BuildCategory {
 
 static func get_building_category(building_type: int) -> int:
 	match building_type:
-		BuildingType.WALL, BuildingType.DOOR, BuildingType.FLOOR:
+		BuildingType.WALL, BuildingType.DOOR, BuildingType.FLOOR, BuildingType.BED:
 			return BuildCategory.STRUCTURES
-		BuildingType.SAWMILL, BuildingType.FARM, BuildingType.MINE:
+		BuildingType.SAWMILL, BuildingType.FARM, BuildingType.MINE, BuildingType.KITCHEN:
 			return BuildCategory.PRODUCTION
 		BuildingType.STOCKPILE:
 			return BuildCategory.LOGISTICS
@@ -188,6 +190,10 @@ static func get_build_cost(building_type: int) -> Dictionary:
 			return {"wood": 1, "stone": 0, "food": 0}
 		BuildingType.STOCKPILE:
 			return {"wood": 0, "stone": 0, "food": 0}
+		BuildingType.BED:
+			return {"wood": 8, "stone": 0, "food": 0}
+		BuildingType.KITCHEN:
+			return {"wood": 15, "stone": 5, "food": 0}
 		_:
 			return {"wood": 0, "stone": 0, "food": 0}
 
@@ -199,13 +205,19 @@ static func get_job_type(building_type: int) -> String:
 			return "miner"
 		BuildingType.FARM:
 			return "farmer"
+		BuildingType.KITCHEN:
+			return "cook"
 		_:
 			return ""
 
 static func get_job_slots(building_type: int) -> int:
-	if get_job_type(building_type) != "":
-		return 2
-	return 0
+	match building_type:
+		BuildingType.SAWMILL, BuildingType.FARM, BuildingType.MINE:
+			return 2
+		BuildingType.KITCHEN:
+			return 1
+		_:
+			return 0
 
 static func is_station(type: int) -> bool:
 	return get_job_type(type) != ""
@@ -218,6 +230,8 @@ static func get_resource_for_job(job: String) -> String:
 			return "stone"
 		"farmer":
 			return "food"
+		"cook":
+			return "prepared_food"
 		_:
 			return ""
 
@@ -238,6 +252,10 @@ static func building_type_to_rect(type: int) -> Rect2:
 			return Rect2(32, 32, 32, 32)
 		BuildingType.FLOOR, BuildingType.STOCKPILE:
 			return Rect2(64, 32, 32, 32)
+		BuildingType.BED:
+			return Rect2(0, 64, 32, 32)
+		BuildingType.KITCHEN:
+			return Rect2(32, 64, 32, 32)
 		_:
 			return Rect2(0, 0, 32, 32)
 

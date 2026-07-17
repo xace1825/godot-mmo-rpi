@@ -13,7 +13,8 @@ var world: Array = []
 var resources: Dictionary = {
 	"wood": 0,
 	"food": 0,
-	"stone": 0
+	"stone": 0,
+	"prepared_food": 0
 }
 var villagers: Dictionary = {}
 var next_villager_id: int = 1
@@ -162,7 +163,7 @@ func add_blueprint(pos: Vector2i, building_type: int = -1) -> int:
 		"pos": {"x": pos.x, "y": pos.y},
 		"progress": 0.0,
 		"cost": cost,
-		"paid": {"wood": 0, "stone": 0, "food": 0}
+		"paid": {"wood": 0, "stone": 0, "food": 0, "prepared_food": 0}
 	}
 	print("Server: added blueprint ", key, " type ", type_id, " cost ", cost)
 	# Do NOT place a floor tile under stations; the completed station itself is passable
@@ -189,11 +190,11 @@ func add_stockpile(topleft: Vector2i, size: Vector2i) -> bool:
 		"topleft": {"x": topleft.x, "y": topleft.y},
 		"size": {"x": size.x, "y": size.y},
 		"zone": zone,
-		"resources": {"wood": 0, "food": 0, "stone": 0}
+		"resources": {"wood": 0, "food": 0, "stone": 0, "prepared_food": 0}
 	}
 	# Starting resources go to the first stockpile so construction can happen
 	if is_first_stockpile:
-		stockpiles[stock_id]["resources"] = {"wood": 500, "stone": 500, "food": 500}
+		stockpiles[stock_id]["resources"] = {"wood": 500, "stone": 500, "food": 500, "prepared_food": 100}
 		print("Server: placed starting resources into first stockpile ", stock_id)
 	_recalc_total_resources()
 	print("Server: added stockpile ", stock_id, " with ", zone.size(), " tiles")
@@ -215,9 +216,14 @@ func spawn_villager(pos: Vector2i, job: String = "idle") -> int:
 		"job": job,
 		"state": "idle",
 		"progress": 0.0,
-		"carrying": {"resource": "", "amount": 0},
+			"carrying": {"resource": "", "amount": 0},
 		"target_blueprint": "",
-		"building_type": -1
+		"building_type": -1,
+		"needs": {
+			"hunger": 80.0,
+			"energy": 80.0,
+			"comfort": 50.0
+		}
 	}
 	villagers[str(id)] = v
 	print("Server: spawned villager ", id, " at ", pos.x, ",", pos.y, " job ", job)
@@ -257,9 +263,14 @@ func spawn_builder_for_blueprint(pos: Vector2i) -> Dictionary:
 		"job": "builder",
 		"state": "moving_to_blueprint",
 		"progress": 0.0,
-		"carrying": {"resource": "", "amount": 0},
+			"carrying": {"resource": "", "amount": 0},
 		"target_blueprint": "%d,%d" % [pos.x, pos.y],
-		"building_type": -1
+		"building_type": -1,
+		"needs": {
+			"hunger": 80.0,
+			"energy": 80.0,
+			"comfort": 50.0
+		}
 	}
 	villagers[str(id)] = v
 	print("Server: spawned builder ", id, " at ", start_pos.x, ",", start_pos.y, " for blueprint ", pos.x, ",", pos.y)
@@ -349,9 +360,14 @@ func spawn_villagers_for_station(pos: Vector2i, station_type: int) -> Array:
 			"workplace": {"x": pos.x, "y": pos.y},
 			"job": job_type,
 			"state": "idle",
-			"progress": 0.0,
+						"progress": 0.0,
 			"carrying": {"resource": "", "amount": 0},
-			"building_type": station_type
+			"building_type": station_type,
+			"needs": {
+				"hunger": 80.0,
+				"energy": 80.0,
+				"comfort": 50.0
+			}
 		}
 		villagers[str(id)] = v
 		spawned.append(v)
@@ -393,18 +409,19 @@ func find_nearest_stockpile(pos: Vector2i) -> String:
 	return best_id
 
 func deposit_to_nearest_stockpile(pos: Vector2i, resource: String, amount: int) -> bool:
+	if resource == "" or amount <= 0:
+		return false
 	var stock_id: String = find_nearest_stockpile(pos)
 	if stock_id == "":
-		# Drop on ground if no stockpile available
 		_drop_item_on_ground(pos, resource, amount)
 		return false
 	var stock: Dictionary = stockpiles[stock_id]
-	stock["resources"][resource] += amount
+	stock["resources"][resource] = stock["resources"].get(resource, 0) + amount
 	_recalc_total_resources()
-	Network.broadcast_resource_sync()
 	Network.broadcast_stockpile_update(stock_id, stock.duplicate())
+	Network.broadcast_resource_sync()
+	print("Server: deposited ", amount, " ", resource, " to ", stock_id)
 	return true
-
 func _drop_item_on_ground(pos: Vector2i, resource: String, amount: int):
 	var key: String = _pos_key(pos)
 	if ground_items.has(key):
@@ -437,11 +454,11 @@ func get_ground_items_data() -> Dictionary:
 	return ground_items.duplicate()
 
 func _recalc_total_resources():
-	resources = {"wood": 0, "food": 0, "stone": 0}
+	resources = {"wood": 0, "food": 0, "stone": 0, "prepared_food": 0}
 	for stock_id: String in stockpiles:
 		var stock: Dictionary = stockpiles[stock_id]
 		for res: String in resources:
-			resources[res] += stock["resources"][res]
+			resources[res] += stock["resources"].get(res, 0)
 
 func get_stockpile_at(pos: Vector2i) -> String:
 	var key: String = _pos_key(pos)
@@ -449,6 +466,57 @@ func get_stockpile_at(pos: Vector2i) -> String:
 		if key in stockpiles[stock_id]["zone"]:
 			return stock_id
 	return ""
+
+
+func consume_food_for_villager(villager_id: String) -> bool:
+	if not villagers.has(villager_id):
+		return false
+	var v: Dictionary = villagers[villager_id]
+	var pos := Vector2i(int(round(v["pos"]["x"])), int(round(v["pos"]["y"])))
+	var stock_id: String = find_stockpile_with_resources(pos, {"prepared_food": 1, "wood": 0, "stone": 0, "food": 0}, {"prepared_food": 0, "wood": 0, "stone": 0, "food": 0})
+	var consumed_type: String = ""
+	if stock_id != "":
+		stockpiles[stock_id]["resources"]["prepared_food"] -= 1
+		consumed_type = "prepared_food"
+	else:
+		stock_id = find_stockpile_with_resources(pos, {"food": 1, "wood": 0, "stone": 0, "prepared_food": 0}, {"food": 0, "wood": 0, "stone": 0, "prepared_food": 0})
+		if stock_id == "":
+			return false
+		stockpiles[stock_id]["resources"]["food"] -= 1
+		consumed_type = "food"
+	_recalc_total_resources()
+	Network.broadcast_stockpile_update(stock_id, stockpiles[stock_id].duplicate())
+	Network.broadcast_resource_sync()
+	var needs: Dictionary = v["needs"]
+	needs["hunger"] = min(needs["hunger"] + 30.0, 100.0)
+	needs["energy"] = min(needs["energy"] + 10.0, 100.0)
+	print("Server: villager ", villager_id, " ate ", consumed_type, " from ", stock_id, " hunger=", needs["hunger"])
+	return true
+
+func find_nearest_bed(pos: Vector2i) -> Vector2i:
+	var best_pos := Vector2i(-1, -1)
+	var best_dist := 999999.0
+	for key: String in buildings:
+		if buildings[key] != PlanetGenerator.BuildingType.BED:
+			continue
+		var bed_pos := _key_pos(key)
+		var dist := sqrt(pow(bed_pos.x - pos.x, 2) + pow(bed_pos.y - pos.y, 2))
+		if dist < best_dist:
+			best_dist = dist
+			best_pos = bed_pos
+	return best_pos
+
+func sleep_at_bed(villager_id: String, bed_pos: Vector2i) -> bool:
+	if not villagers.has(villager_id):
+		return false
+	var key: String = _pos_key(bed_pos)
+	if not buildings.has(key) or buildings[key] != PlanetGenerator.BuildingType.BED:
+		return false
+	var v: Dictionary = villagers[villager_id]
+	v["needs"]["energy"] = 100.0
+	v["needs"]["comfort"] = min(v["needs"]["comfort"] + 20.0, 100.0)
+	print("Server: villager ", villager_id, " slept at bed ", bed_pos, " energy=100")
+	return true
 
 func get_world_data() -> Dictionary:
 	ensure_world_generated()
@@ -487,8 +555,12 @@ func load_world():
 		blueprints = data.get("blueprints", {})
 		stockpiles = data.get("stockpiles", {})
 		ground_items = data.get("ground_items", {})
-		resources = data.get("resources", {"wood": 0, "food": 0, "stone": 0})
+		resources = data.get("resources", {"wood": 0, "food": 0, "stone": 0, "prepared_food": 0})
 		villagers = data.get("villagers", {})
+		# Ensure old villagers have needs data
+		for vid: String in villagers:
+			if not villagers[vid].has("needs"):
+				villagers[vid]["needs"] = {"hunger": 80.0, "energy": 80.0, "comfort": 50.0}
 		next_villager_id = data.get("next_villager_id", 1)
 		print("Server: loaded planet with ", buildings.size(), " buildings, ", blueprints.size(), " blueprints, ", stockpiles.size(), " stockpiles, ", ground_items.size(), " ground piles, ", villagers.size(), " villagers")
 	else:
@@ -531,7 +603,7 @@ func reset_world():
 	room_station_status.clear()
 	villagers.clear()
 	next_villager_id = 1
-	resources = {"wood": 0, "food": 0, "stone": 0}
+	resources = {"wood": 0, "food": 0, "stone": 0, "prepared_food": 0}
 	if FileAccess.file_exists(SAVE_PATH):
 		DirAccess.remove_absolute(SAVE_PATH)
 	create_default_stockpile()

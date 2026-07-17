@@ -24,7 +24,11 @@ func show_stockpile(id: String, data: Dictionary):
 	var res: Dictionary = data.get("resources", {"wood": 0, "stone": 0, "food": 0})
 	var size: Dictionary = data.get("size", {"x": 1, "y": 1})
 	var zone_count: int = data.get("zone", []).size()
-	content_label.text = "Размер: %dx%d\nКлеток: %d\nДерево: %d\nКамень: %d\nЕда: %d" % [
+	content_label.text = "Размер: %dx%d
+Клеток: %d
+Дерево: %d
+Камень: %d
+Еда: %d" % [
 		size.get("x", 1), size.get("y", 1), zone_count,
 		res.get("wood", 0), res.get("stone", 0), res.get("food", 0)
 	]
@@ -41,7 +45,10 @@ func show_villager(id: String, data: Dictionary):
 	var wp_str := "нет"
 	if workplace.has("x") and workplace.has("y"):
 		wp_str = "%d,%d" % [int(workplace["x"]), int(workplace["y"])]
-	content_label.text = "Профессия: %s\nСостояние: %s\nПозиция: %d,%d\nРабочее место: %s" % [
+	content_label.text = "Профессия: %s
+Состояние: %s
+Позиция: %d,%d
+Рабочее место: %s" % [
 		job, state, int(pos.get("x", 0)), int(pos.get("y", 0)), wp_str
 	]
 	panel.visible = true

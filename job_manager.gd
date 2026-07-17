@@ -6,6 +6,9 @@ const BUILD_UNITS_PER_TICK: float = 0.25
 const PRODUCTION_AMOUNT: int = 1
 const VILLAGER_MOVE_SPEED: float = 1.0
 const SYNC_INTERVAL: float = 0.1
+const HUNGER_RATE: float = 1.0
+const ENERGY_RATE: float = 1.0
+const NEEDS_THRESHOLD: float = 25.0
 
 var tick_timer: float = 0.0
 var sync_timer: float = 0.0
@@ -34,6 +37,8 @@ func _on_peer_connected(id: int):
 		print("JobManager enabled for server")
 
 func _tick():
+	_update_needs()
+	_process_needs()
 	_assign_idle_villagers()
 	_process_builders()
 	_process_workers()
@@ -68,7 +73,6 @@ func _assign_idle_villagers():
 			v["job"] = "builder"
 			v["target_blueprint"] = bp_key
 			v["workplace"] = {"x": pos.x, "y": pos.y}
-			# Fetch resources first unless the blueprint is already paid
 			if _is_paid(bp["cost"], bp["paid"]):
 				v["state"] = "moving_to_blueprint"
 			else:
@@ -136,6 +140,8 @@ func _pos_key(pos: Vector2i) -> String:
 func _process_builders():
 	for id in GameState.villagers:
 		var v = GameState.villagers[id] as Dictionary
+		if _is_satisfying_needs(v):
+			continue
 		if v["job"] != "builder":
 			continue
 		var sid := str(id)
@@ -152,20 +158,19 @@ func _process_builders():
 			var bp2 = GameState.blueprints[bp_key] as Dictionary
 			var pos2 = Vector2i(int(bp2["pos"]["x"]), int(bp2["pos"]["y"]))
 			v["workplace"] = {"x": pos2.x, "y": pos2.y}
-			# Decide initial route: fetch resources first, or go straight to blueprint
 			if _is_paid(bp2["cost"], bp2["paid"]):
 				v["state"] = "moving_to_blueprint"
 			else:
 				v["state"] = "moving_to_stockpile"
 			print("Server: builder ", id, " assigned to blueprint ", bp_key, " state ", v["state"])
-		
+
 		var bp = GameState.blueprints[bp_key] as Dictionary
 		var pos = Vector2i(int(bp["pos"]["x"]), int(bp["pos"]["y"]))
 		var cost: Dictionary = bp["cost"]
 		var paid: Dictionary = bp["paid"]
 		var current_tile = Vector2i(int(round(v["pos"]["x"])), int(round(v["pos"]["y"])))
 		var already_paid := _is_paid(cost, paid)
-		
+
 		match v["state"]:
 			"moving_to_blueprint":
 				if current_tile == pos:
@@ -191,7 +196,6 @@ func _process_builders():
 						v["move_progress"] = 0.0
 						print("Server: builder ", id, " finished building at ", pos)
 					else:
-						# Could not complete (e.g. resources missing); try to fetch them
 						v["state"] = "moving_to_stockpile"
 						print("Server: builder ", id, " could not complete, fetching resources")
 			"moving_to_stockpile":
@@ -224,6 +228,80 @@ func _process_builders():
 			"waiting_resources":
 				v["state"] = "moving_to_stockpile"
 
+func _update_needs():
+	for id in GameState.villagers:
+		var v = GameState.villagers[id] as Dictionary
+		var needs: Dictionary = v["needs"]
+		var state: String = v["state"]
+		if state == "eating" or state == "sleeping":
+			continue
+		needs["hunger"] = max(needs["hunger"] - HUNGER_RATE, 0.0)
+		needs["energy"] = max(needs["energy"] - ENERGY_RATE, 0.0)
+		if needs["hunger"] <= NEEDS_THRESHOLD and state != "seeking_food":
+			v["state"] = "seeking_food"
+			v["to_pos"] = v["pos"].duplicate()
+			v["from_pos"] = v["pos"].duplicate()
+			print("Server: villager ", id, " is hungry, seeking food")
+		elif needs["energy"] <= NEEDS_THRESHOLD and state != "seeking_bed":
+			v["state"] = "seeking_bed"
+			v["to_pos"] = v["pos"].duplicate()
+			v["from_pos"] = v["pos"].duplicate()
+			print("Server: villager ", id, " is tired, seeking bed")
+		# Resume normal work when needs are satisfied
+		if state == "seeking_food" and needs["hunger"] >= 80.0:
+			v["state"] = "idle"
+			if v["job"] != "builder" and v["job"] != "idle":
+				v["state"] = "moving_to_work"
+		if state == "seeking_bed" and needs["energy"] >= 80.0:
+			v["state"] = "idle"
+			if v["job"] != "builder" and v["job"] != "idle":
+				v["state"] = "moving_to_work"
+
+func _process_needs():
+	for id in GameState.villagers:
+		var v = GameState.villagers[id] as Dictionary
+		var state: String = v["state"]
+		var current_tile = Vector2i(int(round(v["pos"]["x"])), int(round(v["pos"]["y"])))
+		if state == "seeking_food":
+			var stock_id := GameState.find_stockpile_with_resources(current_tile, {"food": 1, "prepared_food": 1, "wood": 0, "stone": 0}, {"food": 0, "prepared_food": 0, "wood": 0, "stone": 0})
+			if stock_id == "":
+				continue
+			var stock = GameState.stockpiles[stock_id]
+			var stock_pos = Vector2i(int(stock["topleft"]["x"]), int(stock["topleft"]["y"]))
+			if current_tile == stock_pos:
+				if GameState.consume_food_for_villager(id):
+					v["state"] = "eating"
+					print("Server: villager ", id, " is eating at ", stock_id)
+			elif v["from_pos"] == v["to_pos"]:
+				v["to_pos"] = _step_toward_dict(current_tile, stock_pos)
+		elif state == "eating":
+			if v["needs"]["hunger"] >= 80.0:
+				v["state"] = "idle"
+				if v["job"] != "builder" and v["job"] != "idle":
+					v["state"] = "moving_to_work"
+				print("Server: villager ", id, " finished eating")
+		elif state == "seeking_bed":
+			var bed_pos := GameState.find_nearest_bed(current_tile)
+			if bed_pos == Vector2i(-1, -1):
+				v["needs"]["energy"] = min(v["needs"]["energy"] + 5.0, 100.0)
+				continue
+			if current_tile == bed_pos:
+				GameState.sleep_at_bed(id, bed_pos)
+				v["state"] = "sleeping"
+				print("Server: villager ", id, " is sleeping at bed ", bed_pos)
+			elif v["from_pos"] == v["to_pos"]:
+				v["to_pos"] = _step_toward_dict(current_tile, bed_pos)
+		elif state == "sleeping":
+			if v["needs"]["energy"] >= 90.0:
+				v["state"] = "idle"
+				if v["job"] != "builder" and v["job"] != "idle":
+					v["state"] = "moving_to_work"
+				print("Server: villager ", id, " woke up")
+
+func _is_satisfying_needs(v: Dictionary) -> bool:
+	var state: String = v["state"]
+	return state == "seeking_food" or state == "eating" or state == "seeking_bed" or state == "sleeping"
+
 func _is_paid(cost: Dictionary, paid: Dictionary) -> bool:
 	for res: String in cost:
 		if paid.get(res, 0) < cost[res]:
@@ -231,13 +309,12 @@ func _is_paid(cost: Dictionary, paid: Dictionary) -> bool:
 	return true
 
 func _step_toward_dict(from_pos: Vector2i, to_pos: Vector2i) -> Dictionary:
-	# Use A* to find the next step toward the target, avoiding walls and water.
 	var dirs: Array[Vector2i] = [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]
 	var start := from_pos
 	var goal := to_pos
 	if start == goal:
 		return {"x": start.x, "y": start.y}
-	
+
 	var open_set: Array[Vector2i] = [start]
 	var came_from: Dictionary = {}
 	var g_score: Dictionary = {}
@@ -246,7 +323,7 @@ func _step_toward_dict(from_pos: Vector2i, to_pos: Vector2i) -> Dictionary:
 	f_score[_key(start)] = _manhattan(start, goal)
 	var visited: int = 0
 	var max_visited: int = 5000
-	
+
 	while open_set.size() > 0 and visited < max_visited:
 		visited += 1
 		var current: Vector2i = open_set[0]
@@ -258,7 +335,6 @@ func _step_toward_dict(from_pos: Vector2i, to_pos: Vector2i) -> Dictionary:
 				best_idx = i
 		open_set.remove_at(best_idx)
 		if current == goal:
-			# Reconstruct path and return first step after start
 			var path: Array[Vector2i] = [current]
 			while came_from.has(_key(current)):
 				current = came_from[_key(current)]
@@ -295,6 +371,8 @@ func _manhattan(a: Vector2i, b: Vector2i) -> int:
 func _process_workers():
 	for id in GameState.villagers:
 		var v = GameState.villagers[id] as Dictionary
+		if _is_satisfying_needs(v):
+			continue
 		var res := PlanetGenerator.get_resource_for_job(v["job"])
 		if res == "":
 			continue
@@ -310,13 +388,25 @@ func _process_workers():
 					var speed_mult: float = 1.0
 					if not GameState.is_indoor_station(workplace):
 						speed_mult = 0.6
-					v["progress"] += WORK_UNITS_PER_TICK * speed_mult
-					v["state"] = "working"
-					if v["progress"] >= 1.0:
-						v["progress"] = 0.0
-						v["carrying"] = {"resource": res, "amount": PRODUCTION_AMOUNT}
+					if v["job"] == "cook":
+						var food_stock_id := GameState.find_stockpile_with_resources(workplace, {"food": 1, "wood": 0, "stone": 0, "prepared_food": 0}, {"food": 0, "wood": 0, "stone": 0, "prepared_food": 0})
+						if food_stock_id == "":
+							continue
+						var food_stock = GameState.stockpiles[food_stock_id]
+						food_stock["resources"]["food"] -= 1
+						GameState._recalc_total_resources()
+						Network.broadcast_stockpile_update(food_stock_id, food_stock.duplicate())
+						v["carrying"] = {"resource": "prepared_food", "amount": PRODUCTION_AMOUNT}
 						v["state"] = "hauling"
-						print("Server: worker ", id, " produced ", res, " at ", workplace, " (speed x", speed_mult, ")")
+						print("Server: cook ", id, " prepared food at ", workplace, " (speed x", speed_mult, ")")
+					else:
+						v["progress"] += WORK_UNITS_PER_TICK * speed_mult
+						v["state"] = "working"
+						if v["progress"] >= 1.0:
+							v["progress"] = 0.0
+							v["carrying"] = {"resource": res, "amount": PRODUCTION_AMOUNT}
+							v["state"] = "hauling"
+							print("Server: worker ", id, " produced ", res, " at ", workplace, " (speed x", speed_mult, ")")
 			"hauling":
 				var stock_id := GameState.find_nearest_stockpile(workplace)
 				if stock_id == "":

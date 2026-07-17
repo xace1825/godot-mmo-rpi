@@ -137,7 +137,8 @@ func _on_sub_button_pressed(button: Button):
 func _building_button_text(type_id: int) -> String:
 	var icon: String = TYPE_ICONS.get(type_id, "")
 	var ru: String = RU_NAMES.get(type_id, "")
-	return "%s\n%s" % [icon, ru]
+	return "%s
+%s" % [icon, ru]
 
 func _highlight_main_button(active: Button):
 	for child in main_container.get_children():
