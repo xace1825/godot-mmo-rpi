@@ -494,7 +494,7 @@ func _on_villager_sync(villagers: Dictionary):
 				client_villagers[id].queue_free()
 			client_villagers.erase(id)
 
-func _on_villager_clicked(event: InputEvent, id: String, data: Dictionary):
+func _on_villager_clicked(_viewport: Node, event: InputEvent, _shape_idx: int, id: String, data: Dictionary):
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		selected_entity = {"type": "villager", "id": id}
 		if info_panel:

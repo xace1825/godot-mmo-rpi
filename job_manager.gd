@@ -145,11 +145,15 @@ func _process_builders():
 				v["target_blueprint"] = ""
 				continue
 			v["target_blueprint"] = bp_key
-			v["state"] = "moving_to_blueprint"
 			var bp2 = GameState.blueprints[bp_key] as Dictionary
 			var pos2 = Vector2i(int(bp2["pos"]["x"]), int(bp2["pos"]["y"]))
 			v["workplace"] = {"x": pos2.x, "y": pos2.y}
-			print("Server: builder ", id, " assigned to blueprint ", bp_key)
+			# Decide initial route: fetch resources first, or go straight to blueprint
+			if _is_paid(bp2["cost"], bp2["paid"]):
+				v["state"] = "moving_to_blueprint"
+			else:
+				v["state"] = "moving_to_stockpile"
+			print("Server: builder ", id, " assigned to blueprint ", bp_key, " state ", v["state"])
 		
 		var bp = GameState.blueprints[bp_key] as Dictionary
 		var pos = Vector2i(int(bp["pos"]["x"]), int(bp["pos"]["y"]))
@@ -161,29 +165,31 @@ func _process_builders():
 		match v["state"]:
 			"moving_to_blueprint":
 				if current_tile == pos:
-					v["state"] = "building"
-					print("Server: builder ", id, " reached blueprint at ", pos)
+					if already_paid:
+						v["state"] = "building"
+						print("Server: builder ", id, " reached blueprint at ", pos)
+					else:
+						v["state"] = "moving_to_stockpile"
+						print("Server: builder ", id, " reached blueprint but needs resources first")
 				elif v["from_pos"] == v["to_pos"]:
 					v["to_pos"] = _step_toward_dict(current_tile, pos)
 			"building":
 				bp["progress"] += BUILD_UNITS_PER_TICK
 				if bp["progress"] >= 1.0:
 					bp["progress"] = 1.0
-					if already_paid:
-						if GameState.complete_blueprint(pos):
-							v["job"] = "idle"
-							v["target_blueprint"] = ""
-							v["state"] = "idle"
-							v["workplace"] = {}
-							v["to_pos"] = v["pos"].duplicate()
-							v["from_pos"] = v["pos"].duplicate()
-							v["move_progress"] = 0.0
-							print("Server: builder ", id, " finished building at ", pos)
-						else:
-							v["state"] = "moving_to_stockpile"
+					if GameState.complete_blueprint(pos):
+						v["job"] = "idle"
+						v["target_blueprint"] = ""
+						v["state"] = "idle"
+						v["workplace"] = {}
+						v["to_pos"] = v["pos"].duplicate()
+						v["from_pos"] = v["pos"].duplicate()
+						v["move_progress"] = 0.0
+						print("Server: builder ", id, " finished building at ", pos)
 					else:
+						# Could not complete (e.g. resources missing); try to fetch them
 						v["state"] = "moving_to_stockpile"
-						print("Server: builder ", id, " needs resources for blueprint at ", pos)
+						print("Server: builder ", id, " could not complete, fetching resources")
 			"moving_to_stockpile":
 				if already_paid:
 					v["state"] = "returning_to_blueprint"
@@ -208,6 +214,7 @@ func _process_builders():
 			"returning_to_blueprint":
 				if current_tile == pos:
 					v["state"] = "building"
+					print("Server: builder ", id, " returned to blueprint at ", pos)
 				elif v["from_pos"] == v["to_pos"]:
 					v["to_pos"] = _step_toward_dict(current_tile, pos)
 			"waiting_resources":
