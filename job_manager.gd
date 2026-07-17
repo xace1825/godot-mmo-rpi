@@ -67,9 +67,13 @@ func _assign_idle_villagers():
 			var pos = Vector2i(int(bp["pos"]["x"]), int(bp["pos"]["y"]))
 			v["job"] = "builder"
 			v["target_blueprint"] = bp_key
-			v["state"] = "moving_to_blueprint"
 			v["workplace"] = {"x": pos.x, "y": pos.y}
-			print("Server: idle villager ", id, " assigned as builder for ", bp_key)
+			# Fetch resources first unless the blueprint is already paid
+			if _is_paid(bp["cost"], bp["paid"]):
+				v["state"] = "moving_to_blueprint"
+			else:
+				v["state"] = "moving_to_stockpile"
+			print("Server: idle villager ", id, " assigned as builder for ", bp_key, " state ", v["state"])
 			continue
 		var station_pos := _find_station_without_worker(sid)
 		if station_pos != Vector2i(-1, -1):
