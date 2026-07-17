@@ -66,6 +66,21 @@ func _assign_idle_villagers():
 		if v["job"] != "idle":
 			continue
 		var sid := str(id)
+
+		# First: assign to functional production stations if any are empty
+		var station_pos := _find_station_without_worker(sid)
+		if station_pos != Vector2i(-1, -1):
+			var key: String = _pos_key(station_pos)
+			var station_type: int = GameState.buildings[key]
+			var job := PlanetGenerator.get_job_type(station_type)
+			if job != "":
+				v["job"] = job
+				v["workplace"] = {"x": station_pos.x, "y": station_pos.y}
+				v["state"] = "moving_to_work"
+				print("Server: idle villager ", id, " assigned as ", job, " at ", station_pos)
+				continue
+
+		# Second: assign to unfinished blueprints
 		var bp_key := _find_blueprint(sid)
 		if bp_key != "":
 			var bp = GameState.blueprints[bp_key] as Dictionary
@@ -78,17 +93,6 @@ func _assign_idle_villagers():
 			else:
 				v["state"] = "moving_to_stockpile"
 			print("Server: idle villager ", id, " assigned as builder for ", bp_key, " state ", v["state"])
-			continue
-		var station_pos := _find_station_without_worker(sid)
-		if station_pos != Vector2i(-1, -1):
-			var key: String = _pos_key(station_pos)
-			var station_type: int = GameState.buildings[key]
-			var job := PlanetGenerator.get_job_type(station_type)
-			if job != "":
-				v["job"] = job
-				v["workplace"] = {"x": station_pos.x, "y": station_pos.y}
-				v["state"] = "moving_to_work"
-				print("Server: idle villager ", id, " assigned as ", job, " at ", station_pos)
 
 func _find_station_without_worker(exclude_id: String = "") -> Vector2i:
 	for key: String in GameState.buildings:

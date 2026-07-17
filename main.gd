@@ -355,7 +355,7 @@ func _on_world_reset(data: Dictionary):
 			client_villagers[id].queue_free()
 	client_villagers.clear()
 	# Reset resources display
-	client_resources = {"wood": 0, "food": 0, "stone": 0}
+	client_resources = {"wood": 0, "food": 0, "stone": 0, "prepared_food": 0}
 	# Re-apply sync
 	_on_full_sync(data)
 
@@ -395,7 +395,7 @@ func _update_ground_item_node(node: Node2D, item: Dictionary):
 func _on_resource_sync(resources: Dictionary):
 	client_resources = resources.duplicate()
 	_update_stockpile_labels()
-	print("Client resources: wood=", client_resources.get("wood", 0), " food=", client_resources.get("food", 0), " stone=", client_resources.get("stone", 0))
+	print("Client resources: wood=", client_resources.get("wood", 0), " food=", client_resources.get("food", 0), " stone=", client_resources.get("stone", 0), " prepared_food=", client_resources.get("prepared_food", 0))
 
 func _update_stockpile_labels():
 	for stock_id in client_stockpile_labels:
@@ -406,7 +406,7 @@ func _update_stockpile_labels():
 		if data == null:
 			continue
 		var res: Dictionary = data.get("resources", {})
-		var text := "Д:%d К:%d Е:%d" % [res.get("wood", 0), res.get("stone", 0), res.get("food", 0)]
+		var text := "Д:%d К:%d Е:%d Г:%d" % [res.get("wood", 0), res.get("stone", 0), res.get("food", 0), res.get("prepared_food", 0)]
 		label.text = text
 
 func _on_stockpile_added(id: String, data: Dictionary):
@@ -451,7 +451,7 @@ func _on_stockpile_added(id: String, data: Dictionary):
 		client_stockpiles[id].append(bg)
 		
 		var label := Label.new()
-		label.text = "Д:0 К:0 Е:0"
+		label.text = "Д:0 К:0 Е:0 Г:0"
 		label.position = Vector2(center_x - 40, center_y - 34)
 		label.size = Vector2(80, 18)
 		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER

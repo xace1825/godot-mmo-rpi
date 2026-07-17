@@ -21,16 +21,12 @@ func show_stockpile(id: String, data: Dictionary):
 	target_type = "stockpile"
 	target_id = id
 	title_label.text = "Склад %s" % id
-	var res: Dictionary = data.get("resources", {"wood": 0, "stone": 0, "food": 0})
+	var res: Dictionary = data.get("resources", {"wood": 0, "stone": 0, "food": 0, "prepared_food": 0})
 	var size: Dictionary = data.get("size", {"x": 1, "y": 1})
 	var zone_count: int = data.get("zone", []).size()
-	content_label.text = "Размер: %dx%d
-Клеток: %d
-Дерево: %d
-Камень: %d
-Еда: %d" % [
+	content_label.text = "Размер: %dx%d\nКлеток: %d\nДерево: %d\nКамень: %d\nЕда: %d\nГотовая еда: %d" % [
 		size.get("x", 1), size.get("y", 1), zone_count,
-		res.get("wood", 0), res.get("stone", 0), res.get("food", 0)
+		res.get("wood", 0), res.get("stone", 0), res.get("food", 0), res.get("prepared_food", 0)
 	]
 	panel.visible = true
 
@@ -42,14 +38,13 @@ func show_villager(id: String, data: Dictionary):
 	var state: String = data.get("state", "idle")
 	var pos: Dictionary = data.get("pos", {"x": 0, "y": 0})
 	var workplace: Dictionary = data.get("workplace", {})
+	var needs: Dictionary = data.get("needs", {"hunger": 100, "energy": 100, "comfort": 100})
 	var wp_str := "нет"
 	if workplace.has("x") and workplace.has("y"):
 		wp_str = "%d,%d" % [int(workplace["x"]), int(workplace["y"])]
-	content_label.text = "Профессия: %s
-Состояние: %s
-Позиция: %d,%d
-Рабочее место: %s" % [
-		job, state, int(pos.get("x", 0)), int(pos.get("y", 0)), wp_str
+	content_label.text = "Профессия: %s\nСостояние: %s\nПозиция: %d,%d\nРабочее место: %s\nГолод: %d\nЭнергия: %d\nКомфорт: %d" % [
+		job, state, int(pos.get("x", 0)), int(pos.get("y", 0)), wp_str,
+		int(needs.get("hunger", 100)), int(needs.get("energy", 100)), int(needs.get("comfort", 100))
 	]
 	panel.visible = true
 

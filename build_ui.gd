@@ -28,12 +28,14 @@ const CATEGORY_BUILDINGS := {
 	PlanetGenerator.BuildCategory.STRUCTURES: [
 		PlanetGenerator.BuildingType.WALL,
 		PlanetGenerator.BuildingType.DOOR,
-		PlanetGenerator.BuildingType.FLOOR
+		PlanetGenerator.BuildingType.FLOOR,
+		PlanetGenerator.BuildingType.BED
 	],
 	PlanetGenerator.BuildCategory.PRODUCTION: [
 		PlanetGenerator.BuildingType.SAWMILL,
 		PlanetGenerator.BuildingType.FARM,
-		PlanetGenerator.BuildingType.MINE
+		PlanetGenerator.BuildingType.MINE,
+		PlanetGenerator.BuildingType.KITCHEN
 	],
 	PlanetGenerator.BuildCategory.LOGISTICS: [
 		PlanetGenerator.BuildingType.STOCKPILE
@@ -47,7 +49,9 @@ const TYPE_ICONS := {
 	PlanetGenerator.BuildingType.WALL: "[С]",
 	PlanetGenerator.BuildingType.FLOOR: "[П]",
 	PlanetGenerator.BuildingType.DOOR: "[Д]",
-	PlanetGenerator.BuildingType.STOCKPILE: "[Ск]"
+	PlanetGenerator.BuildingType.STOCKPILE: "[Ск]",
+	PlanetGenerator.BuildingType.BED: "[Кр]",
+	PlanetGenerator.BuildingType.KITCHEN: "[Кух]"
 }
 
 const RU_NAMES := {
@@ -57,7 +61,9 @@ const RU_NAMES := {
 	PlanetGenerator.BuildingType.WALL: "Стена",
 	PlanetGenerator.BuildingType.FLOOR: "Пол",
 	PlanetGenerator.BuildingType.DOOR: "Дверь",
-	PlanetGenerator.BuildingType.STOCKPILE: "Склад"
+	PlanetGenerator.BuildingType.STOCKPILE: "Склад",
+	PlanetGenerator.BuildingType.BED: "Кровать",
+	PlanetGenerator.BuildingType.KITCHEN: "Кухня"
 }
 
 const TYPE_COLORS := {
@@ -67,7 +73,9 @@ const TYPE_COLORS := {
 	PlanetGenerator.BuildingType.WALL: Color(0.6, 0.6, 0.65),
 	PlanetGenerator.BuildingType.FLOOR: Color(0.7, 0.6, 0.45),
 	PlanetGenerator.BuildingType.DOOR: Color(0.6, 0.4, 0.25),
-	PlanetGenerator.BuildingType.STOCKPILE: Color(0.8, 0.7, 0.4)
+	PlanetGenerator.BuildingType.STOCKPILE: Color(0.8, 0.7, 0.4),
+	PlanetGenerator.BuildingType.BED: Color(0.9, 0.7, 0.7),
+	PlanetGenerator.BuildingType.KITCHEN: Color(0.9, 0.4, 0.3)
 }
 
 func _ready():
