@@ -580,6 +580,18 @@ func load_world():
 		for vid: String in villagers:
 			if not villagers[vid].has("needs"):
 				villagers[vid]["needs"] = {"hunger": 80.0, "energy": 80.0, "comfort": 50.0}
+			# Ensure workplace/target_blueprint are dictionaries, not null
+			if not villagers[vid].has("workplace") or villagers[vid]["workplace"] == null:
+				villagers[vid]["workplace"] = {}
+			if not villagers[vid].has("target_blueprint") or villagers[vid]["target_blueprint"] == null:
+				villagers[vid]["target_blueprint"] = ""
+			if not villagers[vid].has("carrying") or villagers[vid]["carrying"] == null:
+				villagers[vid]["carrying"] = {"resource": "", "amount": 0}
+		# Ensure all stockpiles have the prepared_food key for newer saves
+		for sid: String in stockpiles:
+			if not stockpiles[sid]["resources"].has("prepared_food"):
+				stockpiles[sid]["resources"]["prepared_food"] = 0
+		_recalc_total_resources()
 		next_villager_id = data.get("next_villager_id", 1)
 		print("Server: loaded planet with ", buildings.size(), " buildings, ", blueprints.size(), " blueprints, ", stockpiles.size(), " stockpiles, ", ground_items.size(), " ground piles, ", villagers.size(), " villagers")
 	else:

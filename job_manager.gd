@@ -9,14 +9,36 @@ const SYNC_INTERVAL: float = 0.1
 const HUNGER_RATE: float = 1.0
 const ENERGY_RATE: float = 1.0
 const NEEDS_THRESHOLD: float = 25.0
+const SAVE_INTERVAL: float = 30.0
 
 var tick_timer: float = 0.0
 var sync_timer: float = 0.0
+var save_timer: float = 0.0
 
-func _physics_process(delta):
+func _ready():
+	set_physics_process(false)
+	multiplayer.peer_connected.connect(_on_peer_connected)
+
+func _notification(what: int):
+	if what == NOTIFICATION_WM_CLOSE_REQUEST:
+		if multiplayer.is_server():
+			print("Server: shutdown requested, saving world...")
+			GameState.save_world()
+		get_tree().quit()
+
+func _on_peer_connected(id: int):
+	if multiplayer.is_server():
+		set_physics_process(true)
+		print("JobManager enabled for server")
+
+func _physics_process(delta: float):
 	if not multiplayer.is_server():
 		return
 	_update_villager_movement(delta)
+	save_timer += delta
+	if save_timer >= SAVE_INTERVAL:
+		save_timer -= SAVE_INTERVAL
+		GameState.save_world()
 	sync_timer += delta
 	if sync_timer >= SYNC_INTERVAL:
 		sync_timer -= SYNC_INTERVAL
@@ -26,15 +48,6 @@ func _physics_process(delta):
 	if tick_timer >= TICK_RATE:
 		tick_timer -= TICK_RATE
 		_tick()
-
-func _ready():
-	set_physics_process(false)
-	multiplayer.peer_connected.connect(_on_peer_connected)
-
-func _on_peer_connected(id: int):
-	if multiplayer.is_server():
-		set_physics_process(true)
-		print("JobManager enabled for server")
 
 func _tick():
 	_update_needs()
@@ -109,7 +122,7 @@ func _assign_manual_jobs():
 		var wp = v.get("workplace", {}) as Dictionary
 		if wp.has("x") and wp.has("y"):
 			continue
-		
+
 		if v["job"] == "builder":
 			var bp_key := _find_blueprint(sid)
 			if bp_key != "":
