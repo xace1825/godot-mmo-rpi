@@ -493,6 +493,25 @@ func consume_food_for_villager(villager_id: String) -> bool:
 	print("Server: villager ", villager_id, " ate ", consumed_type, " from ", stock_id, " hunger=", needs["hunger"])
 	return true
 
+func set_villager_job(villager_id: String, job: String) -> bool:
+	if not villagers.has(villager_id):
+		return false
+	var valid_jobs: Array[String] = ["idle", "lumberjack", "miner", "farmer", "cook", "builder"]
+	if not valid_jobs.has(job):
+		return false
+	var v: Dictionary = villagers[villager_id]
+	v["job"] = job
+	v["state"] = "idle"
+	v["target_blueprint"] = ""
+	v["workplace"] = {}
+	v["progress"] = 0.0
+	v["carrying"] = {"resource": "", "amount": 0}
+	v["to_pos"] = v["pos"].duplicate()
+	v["from_pos"] = v["pos"].duplicate()
+	v["move_progress"] = 0.0
+	print("Server: villager ", villager_id, " job manually set to ", job)
+	return true
+
 func find_nearest_bed(pos: Vector2i) -> Vector2i:
 	var best_pos := Vector2i(-1, -1)
 	var best_dist := 999999.0

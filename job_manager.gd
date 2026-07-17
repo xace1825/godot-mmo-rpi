@@ -40,6 +40,7 @@ func _tick():
 	_update_needs()
 	_process_needs()
 	_assign_idle_villagers()
+	_assign_manual_jobs()
 	_process_builders()
 	_process_workers()
 	Network.broadcast_resource_sync()
@@ -94,13 +95,49 @@ func _assign_idle_villagers():
 				v["state"] = "moving_to_stockpile"
 			print("Server: idle villager ", id, " assigned as builder for ", bp_key, " state ", v["state"])
 
-func _find_station_without_worker(exclude_id: String = "") -> Vector2i:
+func _assign_manual_jobs():
+	# Handle villagers whose job was manually set but they have no workplace yet
+	for id in GameState.villagers:
+		var v = GameState.villagers[id] as Dictionary
+		if _is_satisfying_needs(v):
+			continue
+		if v["state"] != "idle":
+			continue
+		if v["job"] == "idle":
+			continue
+		var sid := str(id)
+		var wp = v.get("workplace", {}) as Dictionary
+		if wp.has("x") and wp.has("y"):
+			continue
+		
+		if v["job"] == "builder":
+			var bp_key := _find_blueprint(sid)
+			if bp_key != "":
+				var bp = GameState.blueprints[bp_key] as Dictionary
+				var pos = Vector2i(int(bp["pos"]["x"]), int(bp["pos"]["y"]))
+				v["target_blueprint"] = bp_key
+				v["workplace"] = {"x": pos.x, "y": pos.y}
+				if _is_paid(bp["cost"], bp["paid"]):
+					v["state"] = "moving_to_blueprint"
+				else:
+					v["state"] = "moving_to_stockpile"
+				print("Server: manual builder ", id, " assigned to blueprint ", bp_key, " state ", v["state"])
+		else:
+			var station_pos := _find_station_without_worker(sid, v["job"])
+			if station_pos != Vector2i(-1, -1):
+				v["workplace"] = {"x": station_pos.x, "y": station_pos.y}
+				v["state"] = "moving_to_work"
+				print("Server: manual ", v["job"], " ", id, " assigned to station at ", station_pos)
+
+func _find_station_without_worker(exclude_id: String = "", required_job: String = "") -> Vector2i:
 	for key: String in GameState.buildings:
 		var type_id: int = GameState.buildings[key]
 		if not PlanetGenerator.is_station(type_id):
 			continue
 		var job_type := PlanetGenerator.get_job_type(type_id)
 		if job_type == "":
+			continue
+		if required_job != "" and job_type != required_job:
 			continue
 		var slots: int = PlanetGenerator.get_job_slots(type_id)
 		var current: int = 0
@@ -381,7 +418,10 @@ func _process_workers():
 		if res == "":
 			continue
 		var current_tile = Vector2i(int(round(v["pos"]["x"])), int(round(v["pos"]["y"])))
-		var workplace := Vector2i(int(v["workplace"]["x"]), int(v["workplace"]["y"]))
+		var wp = v.get("workplace", {}) as Dictionary
+		if not wp.has("x") or not wp.has("y"):
+			continue
+		var workplace := Vector2i(int(wp["x"]), int(wp["y"]))
 		match v["state"]:
 			"idle", "working", "moving_to_work":
 				if current_tile != workplace:

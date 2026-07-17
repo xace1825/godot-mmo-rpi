@@ -152,6 +152,27 @@ func ask_spawn_villager():
 		return
 	rpc_id(1, "request_spawn_villager")
 
+func ask_set_job(villager_id: String, job: String):
+	if multiplayer.is_server():
+		return
+	if not _is_peer_connected():
+		push_warning("Cannot ask_set_job: peer not connected")
+		return
+	rpc_id(1, "request_set_job", villager_id, job)
+
+@rpc("any_peer", "call_remote", "reliable")
+func request_set_job(villager_id: String, job: String):
+	if not multiplayer.is_server():
+		return
+	var peer_id := multiplayer.get_remote_sender_id()
+	print("Server: set job request from ", peer_id, " for villager ", villager_id, " to ", job)
+	if GameState.set_villager_job(villager_id, job):
+		_broadcast_state()
+		rpc("sync_villagers", GameState.villagers.duplicate())
+		print("Server: villager ", villager_id, " job set to ", job)
+	else:
+		print("Server: failed to set job for ", villager_id)
+
 @rpc("any_peer", "call_remote", "reliable")
 func request_spawn_villager():
 	if not multiplayer.is_server():

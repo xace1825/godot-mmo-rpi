@@ -493,6 +493,10 @@ func _on_villager_sync(villagers: Dictionary):
 			if is_instance_valid(client_villagers[id]):
 				client_villagers[id].queue_free()
 			client_villagers.erase(id)
+	
+	# Update info panel if a villager is selected
+	if info_panel and info_panel.target_type == "villager" and villagers.has(info_panel.target_id):
+		info_panel.show_villager(info_panel.target_id, villagers[info_panel.target_id])
 
 func _on_villager_clicked(_viewport: Node, event: InputEvent, _shape_idx: int, id: String, data: Dictionary):
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
