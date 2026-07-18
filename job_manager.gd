@@ -11,6 +11,8 @@ const NEEDS_THRESHOLD: float = 25.0
 
 var _tick_timer: float = 0.0
 var _tick_count: int = 0
+var _sync_timer: float = 0.0
+const SYNC_INTERVAL: float = 0.2
 
 func _ready():
 	set_physics_process(false)
@@ -35,6 +37,12 @@ func _physics_process(delta: float):
 	if _tick_timer >= TICK_RATE:
 		_tick_timer -= TICK_RATE
 		_tick()
+	# Sync villagers frequently for smooth client interpolation
+	if multiplayer.is_server():
+		_sync_timer += delta * Engine.time_scale
+		if _sync_timer >= SYNC_INTERVAL:
+			_sync_timer -= SYNC_INTERVAL
+			Network.broadcast_villager_sync()
 
 func _tick():
 	_update_needs()

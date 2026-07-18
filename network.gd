@@ -53,7 +53,7 @@ func sync_world_state(data: Dictionary):
 	last_full_sync = data
 	full_sync.emit(data)
 
-@rpc("authority", "call_remote", "reliable")
+@rpc("authority", "call_remote", "unreliable")
 func sync_villagers(villagers: Dictionary):
 	villager_sync.emit(villagers)
 
@@ -136,6 +136,10 @@ func _broadcast_state():
 	var data := GameState.get_world_data()
 	if multiplayer.has_multiplayer_peer():
 		rpc("sync_world_state", data)
+
+func broadcast_villager_sync():
+	if multiplayer.has_multiplayer_peer():
+		rpc("sync_villagers", GameState.villagers.duplicate())
 
 func broadcast_resource_sync():
 	if multiplayer.has_multiplayer_peer():
