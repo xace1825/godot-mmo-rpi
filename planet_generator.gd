@@ -129,6 +129,12 @@ static func is_walkable_tile(tile_type: int) -> bool:
 		_:
 			return true
 
+static func is_indoor_building(building_type: int) -> bool:
+	return false
+
+static func is_station(type: int) -> bool:
+	return get_job_type(type) != ""
+
 static func is_walkable_building(building_type: int) -> bool:
 	match building_type:
 		BuildingType.WALL:
@@ -218,9 +224,6 @@ static func get_job_slots(building_type: int) -> int:
 			return 1
 		_:
 			return 0
-
-static func is_station(type: int) -> bool:
-	return get_job_type(type) != ""
 
 static func get_resource_for_job(job: String) -> String:
 	match job:

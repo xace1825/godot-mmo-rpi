@@ -95,13 +95,12 @@ func ask_build(tile_pos: Vector2i, building_type: int = -1):
 		return
 	rpc_id(1, "request_build", tile_pos, building_type)
 
-func ask_stockpile(topleft: Vector2i, size: Vector2i):
-	if multiplayer.is_server():
-		return
-	if not _is_peer_connected():
-		push_warning("Cannot ask_stockpile: peer not connected")
-		return
-	rpc_id(1, "request_stockpile", topleft, size)
+func ask_place_blueprint(tile_pos: Vector2i, building_type: int = -1):
+	ask_build(tile_pos, building_type)
+
+@rpc("any_peer", "call_remote", "reliable")
+func request_place_blueprint(tile_pos: Vector2i, building_type: int = -1):
+	request_build(tile_pos, building_type)
 
 @rpc("any_peer", "call_remote", "reliable")
 func request_build(tile_pos: Vector2i, building_type: int = -1):
@@ -115,6 +114,14 @@ func request_build(tile_pos: Vector2i, building_type: int = -1):
 		# GameState.spawn_builder_for_blueprint(tile_pos)
 		rpc("place_blueprint", tile_pos, type_id)
 		_broadcast_state()
+
+func ask_stockpile(topleft: Vector2i, size: Vector2i):
+	if multiplayer.is_server():
+		return
+	if not _is_peer_connected():
+		push_warning("Cannot ask_stockpile: peer not connected")
+		return
+	rpc_id(1, "request_stockpile", topleft, size)
 
 @rpc("any_peer", "call_remote", "reliable")
 func request_stockpile(topleft: Vector2i, size: Vector2i):
@@ -156,7 +163,7 @@ func ask_set_job(villager_id: String, job: String):
 	if multiplayer.is_server():
 		return
 	if not _is_peer_connected():
-		push_warning("Cannot ask_set_job: peer not connected")
+		push_warning("Cannot ask_set_job: villager not connected")
 		return
 	rpc_id(1, "request_set_job", villager_id, job)
 
