@@ -591,6 +591,12 @@ func load_world():
 		for sid: String in stockpiles:
 			if not stockpiles[sid]["resources"].has("prepared_food"):
 				stockpiles[sid]["resources"]["prepared_food"] = 0
+		# Reset any stuck villagers to idle so the new job manager can reassign them
+		for vid: String in villagers:
+			villagers[vid]["state"] = "idle"
+			villagers[vid]["to_pos"] = villagers[vid]["pos"].duplicate()
+			villagers[vid]["from_pos"] = villagers[vid]["pos"].duplicate()
+			villagers[vid]["move_progress"] = 0.0
 		_recalc_total_resources()
 		next_villager_id = data.get("next_villager_id", 1)
 		print("Server: loaded planet with ", buildings.size(), " buildings, ", blueprints.size(), " blueprints, ", stockpiles.size(), " stockpiles, ", ground_items.size(), " ground piles, ", villagers.size(), " villagers")
