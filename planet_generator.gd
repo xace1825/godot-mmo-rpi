@@ -129,18 +129,22 @@ static func is_walkable_tile(tile_type: int) -> bool:
 		_:
 			return true
 
-static func is_indoor_building(building_type: int) -> bool:
-	return false
-
-static func is_station(type: int) -> bool:
-	return get_job_type(type) != ""
-
 static func is_walkable_building(building_type: int) -> bool:
 	match building_type:
-		BuildingType.WALL:
+		BuildingType.WALL, BuildingType.BED, BuildingType.SAWMILL, BuildingType.KITCHEN, BuildingType.MINE, BuildingType.FARM:
 			return false
 		_:
 			return true
+
+static func is_indoor_building(building_type: int) -> bool:
+	match building_type:
+		BuildingType.FLOOR, BuildingType.WALL, BuildingType.DOOR, BuildingType.BED, BuildingType.SAWMILL, BuildingType.KITCHEN, BuildingType.MINE, BuildingType.FARM:
+			return true
+		_:
+			return false
+
+static func is_station(type: int) -> bool:
+	return get_job_type(type) != ""
 
 enum BuildCategory {
 	STRUCTURES,

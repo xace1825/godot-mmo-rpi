@@ -16,6 +16,7 @@ var building_scene = preload("res://building.tscn")
 var blueprint_scene = preload("res://building.tscn")
 var villager_scene = preload("res://villager.tscn")
 var client_buildings: Dictionary = {}
+var client_floors: Dictionary = {}
 var client_blueprints: Dictionary = {}
 var client_stockpiles: Dictionary = {}
 var client_villagers: Dictionary = {}
@@ -241,6 +242,28 @@ func _draw():
 		draw_rect(Rect2(rect_pos, rect_size), Color(0.9, 0.8, 0.3, 0.8), false, 2.0)
 
 func _on_building_placed(pos: Vector2i, type_id: int):
+	# Floors are stored separately so furniture/buildings can be placed on top
+	if type_id == PlanetGenerator.BuildingType.FLOOR:
+		if client_floors.has(pos):
+			return
+		# Remove blueprint if exists
+		if client_blueprints.has(pos):
+			client_blueprints[pos].queue_free()
+			client_blueprints.erase(pos)
+		var b = building_scene.instantiate()
+		b.position = Vector2(pos.x * TILE_SIZE + TILE_SIZE / 2, pos.y * TILE_SIZE + TILE_SIZE / 2)
+		var sprite := b.get_node("Sprite") as Sprite2D
+		if sprite:
+			sprite.region_rect = PlanetGenerator.building_type_to_rect(type_id)
+			sprite.modulate = Color(1, 1, 1, 1)
+		b.scale = Vector2.ZERO
+		add_child(b)
+		client_floors[pos] = b
+		print("Client placed floor at ", pos)
+		var tween = create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		tween.tween_property(b, "scale", Vector2.ONE, 0.35)
+		return
+	
 	if client_buildings.has(pos):
 		return
 	# Remove blueprint if exists
@@ -254,6 +277,9 @@ func _on_building_placed(pos: Vector2i, type_id: int):
 		sprite.region_rect = PlanetGenerator.building_type_to_rect(type_id)
 		sprite.modulate = Color(1, 1, 1, 1)
 	b.scale = Vector2.ZERO
+	# If a floor exists here, render the building above it
+	if client_floors.has(pos):
+		b.z_index = 1
 	add_child(b)
 	client_buildings[pos] = b
 	print("Client placed building at ", pos, " type ", type_id)
@@ -270,6 +296,8 @@ func _on_blueprint_placed(pos: Vector2i, type_id: int):
 		sprite.region_rect = PlanetGenerator.building_type_to_rect(type_id)
 		sprite.modulate = Color(1, 1, 1, 0.5)
 	b.scale = Vector2.ZERO
+	if client_floors.has(pos):
+		b.z_index = 1
 	add_child(b)
 	client_blueprints[pos] = b
 	print("Client placed blueprint at ", pos, " type ", type_id)
@@ -280,10 +308,14 @@ var camera_initialized: bool = false
 var camera_target_position: Vector2 = Vector2.ZERO
 
 func _on_full_sync(data: Dictionary):
-	print("Client received full sync with ", data["buildings"].size(), " buildings, ", data.get("blueprints", {}).size(), " blueprints, ", data.get("stockpiles", {}).size(), " stockpiles")
+	print("Client received full sync with ", data["buildings"].size(), " buildings, ", data.get("floors", {}).size(), " floors, ", data.get("blueprints", {}).size(), " blueprints, ", data.get("stockpiles", {}).size(), " stockpiles")
 	var seed_value := data.get("seed", 12345) as int
 	world_data = PlanetGenerator.generate_world(seed_value)
 	chunk_manager = ChunkManager.new(tile_map, world_data)
+	for pos_str in data.get("floors", {}):
+		var parts: PackedStringArray = pos_str.split(",")
+		var pos = Vector2i(int(parts[0]), int(parts[1]))
+		_on_building_placed(pos, data["floors"][pos_str])
 	for pos_str in data["buildings"]:
 		var parts: PackedStringArray = pos_str.split(",")
 		var pos = Vector2i(int(parts[0]), int(parts[1]))
@@ -332,23 +364,26 @@ func _on_world_reset(data: Dictionary):
 		if is_instance_valid(client_buildings[pos]):
 			client_buildings[pos].queue_free()
 	client_buildings.clear()
+	# Clear local floors
+	for pos in client_floors:
+		if is_instance_valid(client_floors[pos]):
+			client_floors[pos].queue_free()
+	client_floors.clear()
 	# Clear local blueprints
 	for pos in client_blueprints:
 		if is_instance_valid(client_blueprints[pos]):
 			client_blueprints[pos].queue_free()
 	client_blueprints.clear()
-	# Clear local stockpile overlays
-	for id in client_stockpiles:
-		for marker in client_stockpiles[id]:
-			if is_instance_valid(marker):
-				marker.queue_free()
-	client_stockpiles.clear()
-	# Clear stockpile labels
-	for id in client_stockpile_labels:
-		var label = client_stockpile_labels[id]
-		if is_instance_valid(label):
-			label.queue_free()
+	# Clear stockpiles
+	for stock_id in client_stockpile_sprites:
+		if is_instance_valid(client_stockpile_sprites[stock_id]):
+			client_stockpile_sprites[stock_id].queue_free()
+	client_stockpile_sprites.clear()
+	for stock_id in client_stockpile_labels:
+		if is_instance_valid(client_stockpile_labels[stock_id]):
+			client_stockpile_labels[stock_id].queue_free()
 	client_stockpile_labels.clear()
+	client_stockpiles.clear()
 	# Clear villagers
 	for id in client_villagers:
 		if is_instance_valid(client_villagers[id]):

@@ -3,6 +3,7 @@ extends Node
 const SAVE_PATH: String = "user://world_save.json"
 
 var buildings: Dictionary = {}
+var floors: Dictionary = {}
 var blueprints: Dictionary = {}
 var stockpiles: Dictionary = {}
 var ground_items: Dictionary = {}
@@ -38,8 +39,12 @@ func is_walkable(pos: Vector2i) -> bool:
 	if not PlanetGenerator.is_walkable_tile(get_tile_type(pos)):
 		return false
 	var key: String = _pos_key(pos)
+	# If a building occupies the tile, it controls walkability
 	if buildings.has(key):
 		return PlanetGenerator.is_walkable_building(buildings[key])
+	# Floors are always walkable
+	if floors.has(key):
+		return true
 	return true
 
 func get_room_at(pos: Vector2i) -> int:
@@ -67,8 +72,8 @@ func recalculate_rooms():
 		elif type_id == PlanetGenerator.BuildingType.DOOR:
 			door_tiles[key] = true
 			floor_tiles[key] = true
-		elif type_id == PlanetGenerator.BuildingType.FLOOR or PlanetGenerator.is_station(type_id):
-			floor_tiles[key] = true
+	for key: String in floors:
+		floor_tiles[key] = true
 	# Stockpile zones are passable (they are just floor designations)
 	for stock_id: String in stockpiles:
 		for key: String in stockpiles[stock_id]["zone"]:
@@ -144,7 +149,7 @@ func _pos_key(pos: Vector2i) -> String:
 func add_blueprint(pos: Vector2i, building_type: int = -1) -> int:
 	ensure_world_generated()
 	var key = _pos_key(pos)
-	if buildings.has(key) or blueprints.has(key):
+	if blueprints.has(key) or buildings.has(key):
 		print("Server: tile already occupied")
 		return -1
 	if _pos_in_stockpile(pos):
@@ -166,7 +171,6 @@ func add_blueprint(pos: Vector2i, building_type: int = -1) -> int:
 		"paid": {"wood": 0, "stone": 0, "food": 0, "prepared_food": 0}
 	}
 	print("Server: added blueprint ", key, " type ", type_id, " cost ", cost)
-	# Do NOT place a floor tile under stations; the completed station itself is passable
 	Network.broadcast_blueprint_placed(pos, type_id)
 	return type_id
 
@@ -303,8 +307,11 @@ func complete_blueprint(pos: Vector2i) -> bool:
 			bp["paid"][res] = cost[res]
 		Network.broadcast_stockpile_update(stock_id, stock.duplicate())
 	
-	buildings[key] = bp["type"]
 	var completed_type: int = bp["type"]
+	if completed_type == PlanetGenerator.BuildingType.FLOOR:
+		floors[key] = completed_type
+	else:
+		buildings[key] = completed_type
 	blueprints.erase(key)
 	_recalc_total_resources()
 	if PlanetGenerator.is_station(completed_type):
@@ -551,6 +558,7 @@ func get_world_data() -> Dictionary:
 	return {
 		"seed": world_seed,
 		"buildings": buildings.duplicate(),
+		"floors": floors.duplicate(),
 		"blueprints": blueprints.duplicate(),
 		"stockpiles": stock_copy,
 		"ground_items": ground_items.duplicate(),
@@ -571,6 +579,7 @@ func load_world():
 		world_seed = data.get("seed", world_seed)
 		world = PlanetGenerator.generate_world(world_seed)
 		buildings = data.get("buildings", {})
+		floors = data.get("floors", {})
 		blueprints = data.get("blueprints", {})
 		stockpiles = data.get("stockpiles", {})
 		ground_items = data.get("ground_items", {})
@@ -599,7 +608,7 @@ func load_world():
 			villagers[vid]["move_progress"] = 0.0
 		_recalc_total_resources()
 		next_villager_id = data.get("next_villager_id", 1)
-		print("Server: loaded planet with ", buildings.size(), " buildings, ", blueprints.size(), " blueprints, ", stockpiles.size(), " stockpiles, ", ground_items.size(), " ground piles, ", villagers.size(), " villagers")
+		print("Server: loaded planet with ", buildings.size(), " buildings, ", floors.size(), " floors, ", blueprints.size(), " blueprints, ", stockpiles.size(), " stockpiles, ", ground_items.size(), " ground piles, ", villagers.size(), " villagers")
 	else:
 		push_error("Failed to parse save file")
 
@@ -621,6 +630,7 @@ func save_world():
 	file.store_string(JSON.stringify({
 		"seed": world_seed,
 		"buildings": buildings,
+		"floors": floors,
 		"blueprints": blueprints,
 		"stockpiles": stockpiles,
 		"ground_items": ground_items,
@@ -633,6 +643,7 @@ func save_world():
 
 func reset_world():
 	buildings.clear()
+	floors.clear()
 	blueprints.clear()
 	stockpiles.clear()
 	ground_items.clear()
