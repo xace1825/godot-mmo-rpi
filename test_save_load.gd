@@ -58,12 +58,20 @@ func _physics_process(_delta):
 				_finish()
 
 var last_wood := 0
+var sawmill_built := false
+
 func _on_resource_sync(resources: Dictionary):
 	last_wood = resources.get("wood", 0)
-	if test_phase == "wait_production" and last_wood > 490:
+	print("TEST: resource_sync wood=", last_wood, " sawmill_built=", sawmill_built)
+	if test_phase == "wait_production" and sawmill_built and last_wood >= 491:
 		test_phase = "done_phase1"
 		phase_entered = false
 		test_start_time = Time.get_ticks_msec()
+
+func _on_building_completed(pos: Vector2i, type_id: int):
+	print("TEST: building completed at ", pos)
+	if type_id == PlanetGenerator.BuildingType.SAWMILL:
+		sawmill_built = true
 
 func _on_full_sync(data: Dictionary):
 	full_sync_received = true
@@ -75,9 +83,6 @@ func _on_blueprint(pos: Vector2i, type_id: int):
 		test_phase = "spawn"
 		phase_entered = false
 		test_start_time = Time.get_ticks_msec()
-
-func _on_building_completed(pos: Vector2i, type_id: int):
-	print("TEST: building completed at ", pos)
 
 func _pass(msg: String):
 	passed.append(msg)
