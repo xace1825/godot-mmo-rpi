@@ -21,7 +21,7 @@ var client_blueprints: Dictionary = {}
 var client_stockpiles: Dictionary = {}
 var client_villagers: Dictionary = {}
 var ground_item_scene = preload("res://ground_item.tscn")
-var client_resources: Dictionary = {"wood": 0, "food": 0, "stone": 0}
+var client_resources: Dictionary = {"wood": 0, "food": 0, "stone": 0, "prepared_food": 0, "planks": 0, "blocks": 0}
 var client_stockpile_labels: Dictionary = {}
 var client_stockpile_sprites: Dictionary = {}
 var client_villager_nodes: Dictionary = {}
@@ -390,7 +390,7 @@ func _on_world_reset(data: Dictionary):
 			client_villagers[id].queue_free()
 	client_villagers.clear()
 	# Reset resources display
-	client_resources = {"wood": 0, "food": 0, "stone": 0, "prepared_food": 0}
+	client_resources = {"wood": 0, "food": 0, "stone": 0, "prepared_food": 0, "planks": 0, "blocks": 0}
 	# Re-apply sync
 	_on_full_sync(data)
 
@@ -430,7 +430,7 @@ func _update_ground_item_node(node: Node2D, item: Dictionary):
 func _on_resource_sync(resources: Dictionary):
 	client_resources = resources.duplicate()
 	_update_stockpile_labels()
-	print("Client resources: wood=", client_resources.get("wood", 0), " food=", client_resources.get("food", 0), " stone=", client_resources.get("stone", 0), " prepared_food=", client_resources.get("prepared_food", 0))
+	print("Client resources: wood=", client_resources.get("wood", 0), " stone=", client_resources.get("stone", 0), " food=", client_resources.get("food", 0), " prepared=", client_resources.get("prepared_food", 0), " planks=", client_resources.get("planks", 0), " blocks=", client_resources.get("blocks", 0))
 
 func _update_stockpile_labels():
 	for stock_id in client_stockpile_labels:
@@ -441,7 +441,7 @@ func _update_stockpile_labels():
 		if data == null:
 			continue
 		var res: Dictionary = data.get("resources", {})
-		var text := "Д:%d К:%d Е:%d Г:%d" % [res.get("wood", 0), res.get("stone", 0), res.get("food", 0), res.get("prepared_food", 0)]
+		var text := "Д:%d К:%d Е:%d Г:%d Дс:%d Бл:%d" % [res.get("wood", 0), res.get("stone", 0), res.get("food", 0), res.get("prepared_food", 0), res.get("planks", 0), res.get("blocks", 0)]
 		label.text = text
 
 func _on_stockpile_added(id: String, data: Dictionary):

@@ -31,6 +31,12 @@ func setup(job: String):
 			sprite.modulate = Color(0.25, 0.7, 0.35)
 		"builder":
 			sprite.modulate = Color(1.0, 0.65, 0.0)
+		"cook":
+			sprite.modulate = Color(0.9, 0.4, 0.3)
+		"carpenter":
+			sprite.modulate = Color(0.75, 0.6, 0.35)
+		"mason":
+			sprite.modulate = Color(0.6, 0.55, 0.55)
 		_:
 			sprite.modulate = Color(0.9, 0.9, 0.9)
 	if shadow:

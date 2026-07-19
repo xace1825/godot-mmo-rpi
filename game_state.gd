@@ -15,7 +15,9 @@ var resources: Dictionary = {
 	"wood": 0,
 	"food": 0,
 	"stone": 0,
-	"prepared_food": 0
+	"prepared_food": 0,
+	"planks": 0,
+	"blocks": 0
 }
 var villagers: Dictionary = {}
 var next_villager_id: int = 1
@@ -194,11 +196,11 @@ func add_stockpile(topleft: Vector2i, size: Vector2i) -> bool:
 		"topleft": {"x": topleft.x, "y": topleft.y},
 		"size": {"x": size.x, "y": size.y},
 		"zone": zone,
-		"resources": {"wood": 0, "food": 0, "stone": 0, "prepared_food": 0}
+		"resources": {"wood": 0, "food": 0, "stone": 0, "prepared_food": 0, "planks": 0, "blocks": 0}
 	}
 	# Starting resources go to the first stockpile so construction can happen
 	if is_first_stockpile:
-		stockpiles[stock_id]["resources"] = {"wood": 500, "stone": 500, "food": 500, "prepared_food": 100}
+		stockpiles[stock_id]["resources"] = {"wood": 500, "stone": 500, "food": 500, "prepared_food": 100, "planks": 100, "blocks": 100}
 		print("Server: placed starting resources into first stockpile ", stock_id)
 	_recalc_total_resources()
 	print("Server: added stockpile ", stock_id, " with ", zone.size(), " tiles")
@@ -429,6 +431,23 @@ func deposit_to_nearest_stockpile(pos: Vector2i, resource: String, amount: int) 
 	Network.broadcast_resource_sync()
 	print("Server: deposited ", amount, " ", resource, " to ", stock_id)
 	return true
+
+func consume_from_nearest_stockpile(pos: Vector2i, resource: String, amount: int) -> bool:
+	if resource == "" or amount <= 0:
+		return false
+	var stock_id: String = find_nearest_stockpile(pos)
+	if stock_id == "":
+		return false
+	var stock: Dictionary = stockpiles[stock_id]
+	if stock["resources"].get(resource, 0) < amount:
+		return false
+	stock["resources"][resource] -= amount
+	_recalc_total_resources()
+	Network.broadcast_stockpile_update(stock_id, stock.duplicate())
+	Network.broadcast_resource_sync()
+	print("Server: consumed ", amount, " ", resource, " from ", stock_id)
+	return true
+
 func _drop_item_on_ground(pos: Vector2i, resource: String, amount: int):
 	var key: String = _pos_key(pos)
 	if ground_items.has(key):
@@ -461,7 +480,7 @@ func get_ground_items_data() -> Dictionary:
 	return ground_items.duplicate()
 
 func _recalc_total_resources():
-	resources = {"wood": 0, "food": 0, "stone": 0, "prepared_food": 0}
+	resources = {"wood": 0, "food": 0, "stone": 0, "prepared_food": 0, "planks": 0, "blocks": 0}
 	for stock_id: String in stockpiles:
 		var stock: Dictionary = stockpiles[stock_id]
 		for res: String in resources:
@@ -503,7 +522,7 @@ func consume_food_for_villager(villager_id: String) -> bool:
 func set_villager_job(villager_id: String, job: String) -> bool:
 	if not villagers.has(villager_id):
 		return false
-	var valid_jobs: Array[String] = ["idle", "lumberjack", "miner", "farmer", "cook", "builder"]
+	var valid_jobs: Array[String] = ["idle", "lumberjack", "miner", "farmer", "cook", "builder", "carpenter", "mason"]
 	if not valid_jobs.has(job):
 		return false
 	var v: Dictionary = villagers[villager_id]
@@ -583,7 +602,11 @@ func load_world():
 		blueprints = data.get("blueprints", {})
 		stockpiles = data.get("stockpiles", {})
 		ground_items = data.get("ground_items", {})
-		resources = data.get("resources", {"wood": 0, "food": 0, "stone": 0, "prepared_food": 0})
+		resources = data.get("resources", {"wood": 0, "food": 0, "stone": 0, "prepared_food": 0, "planks": 0, "blocks": 0})
+		# Migrate missing refined resources
+		for res in ["prepared_food", "planks", "blocks"]:
+			if not resources.has(res):
+				resources[res] = 0
 		villagers = data.get("villagers", {})
 		# Ensure old villagers have needs data
 		for vid: String in villagers:
@@ -596,10 +619,11 @@ func load_world():
 				villagers[vid]["target_blueprint"] = ""
 			if not villagers[vid].has("carrying") or villagers[vid]["carrying"] == null:
 				villagers[vid]["carrying"] = {"resource": "", "amount": 0}
-		# Ensure all stockpiles have the prepared_food key for newer saves
+		# Ensure all stockpiles have refined-resource keys for newer saves
 		for sid: String in stockpiles:
-			if not stockpiles[sid]["resources"].has("prepared_food"):
-				stockpiles[sid]["resources"]["prepared_food"] = 0
+			for res in ["prepared_food", "planks", "blocks"]:
+				if not stockpiles[sid]["resources"].has(res):
+					stockpiles[sid]["resources"][res] = 0
 		# Reset any stuck villagers to idle so the new job manager can reassign them
 		for vid: String in villagers:
 			villagers[vid]["state"] = "idle"
@@ -651,7 +675,7 @@ func reset_world():
 	room_station_status.clear()
 	villagers.clear()
 	next_villager_id = 1
-	resources = {"wood": 0, "food": 0, "stone": 0, "prepared_food": 0}
+	resources = {"wood": 0, "food": 0, "stone": 0, "prepared_food": 0, "planks": 0, "blocks": 0}
 	if FileAccess.file_exists(SAVE_PATH):
 		DirAccess.remove_absolute(SAVE_PATH)
 	create_default_stockpile()

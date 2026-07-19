@@ -29,7 +29,9 @@ enum BuildingType {
 	FLOOR,
 	STOCKPILE,
 	BED,
-	KITCHEN
+	KITCHEN,
+	CARPENTER,
+	MASON
 }
 
 const HEIGHT_DEEP: float = -0.85
@@ -131,14 +133,14 @@ static func is_walkable_tile(tile_type: int) -> bool:
 
 static func is_walkable_building(building_type: int) -> bool:
 	match building_type:
-		BuildingType.WALL, BuildingType.BED, BuildingType.SAWMILL, BuildingType.KITCHEN, BuildingType.MINE, BuildingType.FARM:
+		BuildingType.WALL, BuildingType.BED, BuildingType.SAWMILL, BuildingType.KITCHEN, BuildingType.MINE, BuildingType.FARM, BuildingType.CARPENTER, BuildingType.MASON:
 			return false
 		_:
 			return true
 
 static func is_indoor_building(building_type: int) -> bool:
 	match building_type:
-		BuildingType.FLOOR, BuildingType.WALL, BuildingType.DOOR, BuildingType.BED, BuildingType.SAWMILL, BuildingType.KITCHEN, BuildingType.MINE, BuildingType.FARM:
+		BuildingType.FLOOR, BuildingType.WALL, BuildingType.DOOR, BuildingType.BED, BuildingType.SAWMILL, BuildingType.KITCHEN, BuildingType.MINE, BuildingType.FARM, BuildingType.CARPENTER, BuildingType.MASON:
 			return true
 		_:
 			return false
@@ -157,7 +159,7 @@ static func get_building_category(building_type: int) -> int:
 	match building_type:
 		BuildingType.WALL, BuildingType.DOOR, BuildingType.FLOOR, BuildingType.BED:
 			return BuildCategory.STRUCTURES
-		BuildingType.SAWMILL, BuildingType.FARM, BuildingType.MINE, BuildingType.KITCHEN:
+		BuildingType.SAWMILL, BuildingType.FARM, BuildingType.MINE, BuildingType.KITCHEN, BuildingType.CARPENTER, BuildingType.MASON:
 			return BuildCategory.PRODUCTION
 		BuildingType.STOCKPILE:
 			return BuildCategory.LOGISTICS
@@ -217,12 +219,16 @@ static func get_job_type(building_type: int) -> String:
 			return "farmer"
 		BuildingType.KITCHEN:
 			return "cook"
+		BuildingType.CARPENTER:
+			return "carpenter"
+		BuildingType.MASON:
+			return "mason"
 		_:
 			return ""
 
 static func get_job_slots(building_type: int) -> int:
 	match building_type:
-		BuildingType.SAWMILL, BuildingType.FARM, BuildingType.MINE:
+		BuildingType.SAWMILL, BuildingType.FARM, BuildingType.MINE, BuildingType.CARPENTER, BuildingType.MASON:
 			return 2
 		BuildingType.KITCHEN:
 			return 1
@@ -239,6 +245,21 @@ static func get_resource_for_job(job: String) -> String:
 			return "food"
 		"cook":
 			return "prepared_food"
+		"carpenter":
+			return "planks"
+		"mason":
+			return "blocks"
+		_:
+			return ""
+
+static func get_consumes_for_job(job: String) -> String:
+	match job:
+		"cook":
+			return "food"
+		"carpenter":
+			return "wood"
+		"mason":
+			return "stone"
 		_:
 			return ""
 
@@ -263,6 +284,10 @@ static func building_type_to_rect(type: int) -> Rect2:
 			return Rect2(0, 64, 32, 32)
 		BuildingType.KITCHEN:
 			return Rect2(32, 64, 32, 32)
+		BuildingType.CARPENTER:
+			return Rect2(64, 64, 32, 32)
+		BuildingType.MASON:
+			return Rect2(96, 64, 32, 32)
 		_:
 			return Rect2(0, 0, 32, 32)
 

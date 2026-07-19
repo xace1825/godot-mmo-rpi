@@ -61,7 +61,7 @@ func _update_villager_movement(delta: float):
 		var v = GameState.villagers[id] as Dictionary
 		if v["from_pos"] == v["to_pos"]:
 			continue
-		v["move_progress"] += delta * VILLAGER_MOVE_SPEED
+		v["move_progress"] += delta * Engine.time_scale * VILLAGER_MOVE_SPEED
 		if v["move_progress"] >= 1.0:
 			v["move_progress"] = 0.0
 			v["from_pos"] = v["to_pos"].duplicate()
@@ -363,6 +363,12 @@ func _process_workers():
 				elif v["from_pos"] == v["to_pos"]:
 					v["to_pos"] = _step_toward_dict(current_tile, workplace)
 			"working":
+				var consumes: String = PlanetGenerator.get_consumes_for_job(job)
+				if consumes != "":
+					if not GameState.consume_from_nearest_stockpile(current_tile, consumes, 1):
+						v["state"] = "idle"
+						print("Server: worker ", id, " waiting for ", consumes)
+						continue
 				v["progress"] += WORK_UNITS_PER_TICK * speed_mult
 				v["state"] = "working"
 				if v["progress"] >= 1.0:
@@ -387,7 +393,7 @@ func _process_workers():
 					continue
 				var target_stock = GameState.stockpiles[target_stock_id]
 				var target_pos = Vector2i(int(target_stock["topleft"]["x"]), int(target_stock["topleft"]["y"]))
-				if current_tile == target_pos:
+				if GameState.get_stockpile_at(current_tile) == target_stock_id:
 					GameState.deposit_to_nearest_stockpile(current_tile, resource, amount)
 					v["carrying"] = {"resource": "", "amount": 0}
 					v["state"] = "idle"
