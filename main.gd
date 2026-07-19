@@ -43,6 +43,11 @@ var is_dragging_stockpile: bool = false
 var drag_start_tile: Vector2i = Vector2i(-1, -1)
 var drag_current_tile: Vector2i = Vector2i(-1, -1)
 
+# Room drag selection
+var is_dragging_room: bool = false
+var room_drag_start: Vector2i = Vector2i(-1, -1)
+var room_drag_current: Vector2i = Vector2i(-1, -1)
+
 func _ready():
 	is_server = OS.has_feature("dedicated_server") or DisplayServer.get_name() == "headless"
 
@@ -215,6 +220,22 @@ func _unhandled_input(event):
 							Network.ask_stockpile(top_left, size)
 						drag_start_tile = Vector2i(-1, -1)
 						drag_current_tile = Vector2i(-1, -1)
+			elif build_ui.is_room_mode():
+				if event.pressed:
+					is_dragging_room = true
+					room_drag_start = tile
+					room_drag_current = tile
+				else:
+					if is_dragging_room:
+						is_dragging_room = false
+						var start := Vector2i(min(room_drag_start.x, room_drag_current.x), min(room_drag_start.y, room_drag_current.y))
+						var end := Vector2i(max(room_drag_start.x, room_drag_current.x), max(room_drag_start.y, room_drag_current.y))
+						if end.x > start.x and end.y > start.y:
+							print("Client requesting room from ", start, " to ", end)
+							Network.ask_build_room(start, end)
+						room_drag_start = Vector2i(-1, -1)
+						room_drag_current = Vector2i(-1, -1)
+						build_ui.clear_selection()
 			else:
 				if event.pressed:
 					print("Client clicked tile: ", tile, " type: ", selected_build_type)
@@ -223,6 +244,10 @@ func _unhandled_input(event):
 		var tile := tile_map.local_to_map(tile_map.get_local_mouse_position())
 		if tile.x >= 0 and tile.x < WORLD_SIZE and tile.y >= 0 and tile.y < WORLD_SIZE:
 			drag_current_tile = tile
+	elif event is InputEventMouseMotion and is_dragging_room:
+		var tile := tile_map.local_to_map(tile_map.get_local_mouse_position())
+		if tile.x >= 0 and tile.x < WORLD_SIZE and tile.y >= 0 and tile.y < WORLD_SIZE:
+			room_drag_current = tile
 	elif event is InputEventKey and event.pressed and event.keycode == KEY_SPACE:
 		camera.position = Vector2(WORLD_SIZE * TILE_SIZE / 2, WORLD_SIZE * TILE_SIZE / 2)
 
@@ -240,6 +265,20 @@ func _draw():
 		var rect_size := Vector2((bottom_right.x - top_left.x + 1) * TILE_SIZE, (bottom_right.y - top_left.y + 1) * TILE_SIZE)
 		draw_rect(Rect2(rect_pos, rect_size), Color(0.9, 0.8, 0.3, 0.4), true)
 		draw_rect(Rect2(rect_pos, rect_size), Color(0.9, 0.8, 0.3, 0.8), false, 2.0)
+	if is_dragging_room and room_drag_start.x >= 0 and room_drag_current.x >= 0:
+		var top_left := Vector2i(min(room_drag_start.x, room_drag_current.x), min(room_drag_start.y, room_drag_current.y))
+		var bottom_right := Vector2i(max(room_drag_start.x, room_drag_current.x), max(room_drag_start.y, room_drag_current.y))
+		var rect_pos := Vector2(top_left.x * TILE_SIZE, top_left.y * TILE_SIZE)
+		var rect_size := Vector2((bottom_right.x - top_left.x + 1) * TILE_SIZE, (bottom_right.y - top_left.y + 1) * TILE_SIZE)
+		draw_rect(Rect2(rect_pos, rect_size), Color(0.5, 0.7, 0.9, 0.4), true)
+		draw_rect(Rect2(rect_pos, rect_size), Color(0.5, 0.7, 0.9, 0.8), false, 2.0)
+		# Outline walls
+		for x in range(top_left.x, bottom_right.x + 1):
+			for y in range(top_left.y, bottom_right.y + 1):
+				if x == top_left.x or x == bottom_right.x or y == top_left.y or y == bottom_right.y:
+					draw_rect(Rect2(Vector2(x * TILE_SIZE, y * TILE_SIZE), Vector2(TILE_SIZE, TILE_SIZE)), Color(0.6, 0.6, 0.65, 0.6), true)
+				else:
+					draw_rect(Rect2(Vector2(x * TILE_SIZE, y * TILE_SIZE), Vector2(TILE_SIZE, TILE_SIZE)), Color(0.7, 0.6, 0.45, 0.4), true)
 
 func _on_building_placed(pos: Vector2i, type_id: int):
 	# Floors are stored separately so furniture/buildings can be placed on top

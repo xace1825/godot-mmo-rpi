@@ -176,6 +176,83 @@ func add_blueprint(pos: Vector2i, building_type: int = -1) -> int:
 	Network.broadcast_blueprint_placed(pos, type_id)
 	return type_id
 
+func add_room_blueprints(start: Vector2i, end: Vector2i) -> bool:
+	ensure_world_generated()
+	# Normalize
+	var tl := Vector2i(min(start.x, end.x), min(start.y, end.y))
+	var br := Vector2i(max(start.x, end.x), max(start.y, end.y))
+	if br.x <= tl.x or br.y <= tl.y:
+		print("Server: room has zero or negative size")
+		return false
+	if br.x - tl.x < 2 or br.y - tl.y < 2:
+		print("Server: room too small")
+		return false
+	
+	# Calculate required resources
+	var perimeter: int = 2 * ((br.x - tl.x + 1) + (br.y - tl.y + 1)) - 4
+	var interior: int = (br.x - tl.x - 1) * (br.y - tl.y - 1)
+	var wall_cost := PlanetGenerator.get_build_cost(PlanetGenerator.BuildingType.WALL)
+	var floor_cost := PlanetGenerator.get_build_cost(PlanetGenerator.BuildingType.FLOOR)
+	var door_cost := PlanetGenerator.get_build_cost(PlanetGenerator.BuildingType.DOOR)
+	var needed := {
+		"wood": wall_cost.get("wood", 0) * (perimeter - 1) + floor_cost.get("wood", 0) * interior + door_cost.get("wood", 0),
+		"stone": wall_cost.get("stone", 0) * (perimeter - 1) + floor_cost.get("stone", 0) * interior + door_cost.get("stone", 0),
+		"food": 0
+	}
+	# Check available resources in any stockpile (total pool for room placement)
+	var total_available := {"wood": resources.get("wood", 0), "stone": resources.get("stone", 0)}
+	for res in needed:
+		if needed[res] > total_available.get(res, 0):
+			print("Server: not enough ", res, " for room (need ", needed[res], ", have ", total_available.get(res, 0), ")")
+			return false
+	
+	# Choose door position on perimeter closest to drag start
+	var door_pos := tl
+	var best_dist: int = 999999
+	for x in range(tl.x, br.x + 1):
+		for y in range(tl.y, br.y + 1):
+			if x == tl.x or x == br.x or y == tl.y or y == br.y:
+				var d: int = abs(x - start.x) + abs(y - start.y)
+				if d < best_dist:
+					best_dist = d
+					door_pos = Vector2i(x, y)
+	
+	# Pay for the room immediately from nearest stockpile(s)
+	var center := Vector2i((tl.x + br.x) / 2, (tl.y + br.y) / 2)
+	for res in needed:
+		if needed[res] > 0:
+			var remaining: int = needed[res]
+			while remaining > 0:
+				var stock_id := find_stockpile_with_resources(center, {res: remaining}, {res: 0})
+				if stock_id == "":
+					print("Server: could not find stockpile with ", res, " for room")
+					return false
+				var stock: Dictionary = stockpiles[stock_id]
+				var take: int = min(remaining, stock["resources"].get(res, 0))
+				stock["resources"][res] -= take
+				remaining -= take
+	
+	_recalc_total_resources()
+	Network.broadcast_resource_sync()
+	
+	# Place blueprints
+	var wall_count := 0
+	var floor_count := 0
+	for x in range(tl.x, br.x + 1):
+		for y in range(tl.y, br.y + 1):
+			var pos := Vector2i(x, y)
+			if x == tl.x or x == br.x or y == tl.y or y == br.y:
+				if pos == door_pos:
+					add_blueprint(pos, PlanetGenerator.BuildingType.DOOR)
+				else:
+					add_blueprint(pos, PlanetGenerator.BuildingType.WALL)
+					wall_count += 1
+			else:
+				add_blueprint(pos, PlanetGenerator.BuildingType.FLOOR)
+				floor_count += 1
+	print("Server: added room blueprints walls=", wall_count, " floors=", floor_count, " door at ", door_pos)
+	return true
+
 func add_stockpile(topleft: Vector2i, size: Vector2i) -> bool:
 	ensure_world_generated()
 	var zone: Array = []

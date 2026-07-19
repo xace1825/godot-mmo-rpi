@@ -179,6 +179,22 @@ func ask_drop_item(pos: Vector2i, resource: String, amount: int):
 		return
 	rpc_id(1, "request_drop_item", pos, resource, amount)
 
+func ask_build_room(start: Vector2i, end: Vector2i):
+	if multiplayer.is_server():
+		return
+	if not _is_peer_connected():
+		push_warning("Cannot ask_build_room: not connected")
+		return
+	rpc_id(1, "request_build_room", start, end)
+
+@rpc("any_peer", "call_remote", "reliable")
+func request_build_room(start: Vector2i, end: Vector2i):
+	if not multiplayer.is_server():
+		return
+	var peer_id := multiplayer.get_remote_sender_id()
+	print("Server: build room request from ", peer_id, " from ", start, " to ", end)
+	GameState.add_room_blueprints(start, end)
+
 @rpc("any_peer", "call_remote", "reliable")
 func request_drop_item(pos: Vector2i, resource: String, amount: int):
 	if not multiplayer.is_server():

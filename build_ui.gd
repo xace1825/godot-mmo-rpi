@@ -29,7 +29,8 @@ const CATEGORY_BUILDINGS := {
 		PlanetGenerator.BuildingType.WALL,
 		PlanetGenerator.BuildingType.DOOR,
 		PlanetGenerator.BuildingType.FLOOR,
-		PlanetGenerator.BuildingType.BED
+		PlanetGenerator.BuildingType.BED,
+		-1  # Room mode placeholder
 	],
 	PlanetGenerator.BuildCategory.PRODUCTION: [
 		PlanetGenerator.BuildingType.SAWMILL,
@@ -55,7 +56,8 @@ const TYPE_ICONS := {
 	PlanetGenerator.BuildingType.BED: "[Кр]",
 	PlanetGenerator.BuildingType.KITCHEN: "[Кух]",
 	PlanetGenerator.BuildingType.CARPENTER: "[Ст]",
-	PlanetGenerator.BuildingType.MASON: "[Ка]"
+	PlanetGenerator.BuildingType.MASON: "[Ка]",
+	-1: "[Км]"
 }
 
 const RU_NAMES := {
@@ -69,7 +71,8 @@ const RU_NAMES := {
 	PlanetGenerator.BuildingType.BED: "Кровать",
 	PlanetGenerator.BuildingType.KITCHEN: "Кухня",
 	PlanetGenerator.BuildingType.CARPENTER: "Столярная",
-	PlanetGenerator.BuildingType.MASON: "Каменотёсная"
+	PlanetGenerator.BuildingType.MASON: "Каменотёсная",
+	-1: "Комната"
 }
 
 const TYPE_COLORS := {
@@ -83,7 +86,8 @@ const TYPE_COLORS := {
 	PlanetGenerator.BuildingType.BED: Color(0.9, 0.7, 0.7),
 	PlanetGenerator.BuildingType.KITCHEN: Color(0.9, 0.4, 0.3),
 	PlanetGenerator.BuildingType.CARPENTER: Color(0.75, 0.6, 0.35),
-	PlanetGenerator.BuildingType.MASON: Color(0.6, 0.55, 0.55)
+	PlanetGenerator.BuildingType.MASON: Color(0.6, 0.55, 0.55),
+	-1: Color(0.5, 0.7, 0.9)
 }
 
 func _ready():
@@ -149,6 +153,13 @@ func _on_sub_button_pressed(button: Button):
 	print("BuildUI: selected ", button.text, " type ", type_id)
 	_highlight_sub_button(button)
 	button.accept_event()
+
+func is_room_mode() -> bool:
+	return selected_type == -1
+
+func clear_selection():
+	selected_type = -1
+	_close_sub_panel()
 
 func _building_button_text(type_id: int) -> String:
 	var icon: String = TYPE_ICONS.get(type_id, "")
