@@ -171,6 +171,22 @@ func ask_set_job(villager_id: String, job: String):
 		return
 	rpc_id(1, "request_set_job", villager_id, job)
 
+func ask_drop_item(pos: Vector2i, resource: String, amount: int):
+	if multiplayer.is_server():
+		return
+	if not _is_peer_connected():
+		push_warning("Cannot ask_drop_item: not connected")
+		return
+	rpc_id(1, "request_drop_item", pos, resource, amount)
+
+@rpc("any_peer", "call_remote", "reliable")
+func request_drop_item(pos: Vector2i, resource: String, amount: int):
+	if not multiplayer.is_server():
+		return
+	var peer_id := multiplayer.get_remote_sender_id()
+	print("Server: drop item request from ", peer_id, " at ", pos, " ", resource, " x", amount)
+	GameState.drop_item_on_ground(pos, resource, amount)
+
 @rpc("any_peer", "call_remote", "reliable")
 func request_set_job(villager_id: String, job: String):
 	if not multiplayer.is_server():

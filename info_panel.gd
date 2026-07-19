@@ -15,7 +15,10 @@ const JOB_NAMES := {
 	"miner": "Шахтер",
 	"farmer": "Фермер",
 	"cook": "Повар",
-	"builder": "Строитель"
+	"builder": "Строитель",
+	"carpenter": "Столяр",
+	"mason": "Каменщик",
+	"hauler": "Носильщик"
 }
 
 func _ready():

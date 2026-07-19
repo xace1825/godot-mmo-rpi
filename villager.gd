@@ -37,10 +37,10 @@ func setup(job: String):
 			sprite.modulate = Color(0.75, 0.6, 0.35)
 		"mason":
 			sprite.modulate = Color(0.6, 0.55, 0.55)
+		"hauler":
+			sprite.modulate = Color(0.9, 0.75, 0.2)
 		_:
-			sprite.modulate = Color(0.9, 0.9, 0.9)
-	if shadow:
-		shadow.modulate = Color(0, 0, 0, 0.35)
+			sprite.modulate = Color(0.8, 0.8, 0.8)
 
 func set_carrying(resource: String, amount: int):
 	if carrying_rect == null:

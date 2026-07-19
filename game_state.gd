@@ -448,6 +448,9 @@ func consume_from_nearest_stockpile(pos: Vector2i, resource: String, amount: int
 	print("Server: consumed ", amount, " ", resource, " from ", stock_id)
 	return true
 
+func drop_item_on_ground(pos: Vector2i, resource: String, amount: int):
+	_drop_item_on_ground(pos, resource, amount)
+
 func _drop_item_on_ground(pos: Vector2i, resource: String, amount: int):
 	var key: String = _pos_key(pos)
 	if ground_items.has(key):
@@ -522,7 +525,7 @@ func consume_food_for_villager(villager_id: String) -> bool:
 func set_villager_job(villager_id: String, job: String) -> bool:
 	if not villagers.has(villager_id):
 		return false
-	var valid_jobs: Array[String] = ["idle", "lumberjack", "miner", "farmer", "cook", "builder", "carpenter", "mason"]
+	var valid_jobs: Array[String] = ["idle", "lumberjack", "miner", "farmer", "cook", "builder", "carpenter", "mason", "hauler"]
 	if not valid_jobs.has(job):
 		return false
 	var v: Dictionary = villagers[villager_id]

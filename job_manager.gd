@@ -106,6 +106,13 @@ func _assign_idle_villagers():
 				v["state"] = "moving_to_work"
 				print("Server: idle villager ", id, " assigned as ", job, " at ", station_pos)
 				continue
+		# If nothing else, become a hauler and pick up ground items
+		if GameState.ground_items.size() > 0:
+			v["job"] = "hauler"
+			v["workplace"] = {}
+			v["state"] = "idle"
+			print("Server: idle villager ", id, " assigned as hauler")
+			continue
 
 func _assign_manual_jobs():
 	# Handle villagers whose job was manually set but they have no workplace yet
@@ -334,6 +341,9 @@ func _process_workers():
 		var job: String = v["job"]
 		if job == "idle" or job == "builder":
 			continue
+		if job == "hauler":
+			_process_hauler(str(id), v)
+			continue
 		var wp = v.get("workplace", {}) as Dictionary
 		if not wp.has("x") or not wp.has("y"):
 			continue
@@ -401,6 +411,63 @@ func _process_workers():
 				elif v["from_pos"] == v["to_pos"]:
 					v["to_pos"] = _step_toward_dict(current_tile, target_pos)
 
+func _process_hauler(id: String, v: Dictionary):
+	var current_tile := Vector2i(int(round(v["pos"]["x"])), int(round(v["pos"]["y"])))
+	match v["state"]:
+		"idle", "moving_to_ground":
+			# Find nearest ground item
+			var best_key := ""
+			var best_dist: int = 999999
+			for key: String in GameState.ground_items:
+				var item: Dictionary = GameState.ground_items[key]
+				var parts := key.split(",")
+				var ipos := Vector2i(int(parts[0]), int(parts[1]))
+				var d: int = abs(ipos.x - current_tile.x) + abs(ipos.y - current_tile.y)
+				if d < best_dist:
+					best_dist = d
+					best_key = key
+			if best_key == "":
+				# Nothing to haul
+				v["state"] = "idle"
+				return
+			var parts := best_key.split(",")
+			var target_pos := Vector2i(int(parts[0]), int(parts[1]))
+			if current_tile == target_pos:
+				var item: Dictionary = GameState.ground_items[best_key]
+				var picked: int = GameState.pickup_ground_item(target_pos, item["resource"], 5)
+				if picked > 0:
+					v["carrying"] = {"resource": item["resource"], "amount": picked}
+					v["state"] = "hauling_to_stockpile"
+					print("Server: hauler ", id, " picked up ", picked, " ", item["resource"], " at ", target_pos)
+				else:
+					v["state"] = "idle"
+					return
+			elif v["from_pos"] == v["to_pos"]:
+				v["to_pos"] = _step_toward_dict(current_tile, target_pos)
+				v["state"] = "moving_to_ground"
+		"hauling_to_stockpile":
+			var carrying = v.get("carrying", {}) as Dictionary
+			var amount: int = carrying.get("amount", 0)
+			var resource: String = carrying.get("resource", "")
+			if resource == "" or amount <= 0:
+				v["state"] = "idle"
+				v["carrying"] = {"resource": "", "amount": 0}
+				return
+			var target_stock_id := GameState.find_nearest_stockpile(current_tile)
+			if target_stock_id == "":
+				v["state"] = "idle"
+				v["carrying"] = {"resource": "", "amount": 0}
+				return
+			var target_stock: Dictionary = GameState.stockpiles[target_stock_id]
+			var target_pos := Vector2i(int(target_stock["topleft"]["x"]), int(target_stock["topleft"]["y"]))
+			if GameState.get_stockpile_at(current_tile) == target_stock_id:
+				GameState.deposit_to_nearest_stockpile(current_tile, resource, amount)
+				v["carrying"] = {"resource": "", "amount": 0}
+				v["state"] = "idle"
+				print("Server: hauler ", id, " deposited ", amount, " ", resource, " to ", target_stock_id)
+			elif v["from_pos"] == v["to_pos"]:
+				v["to_pos"] = _step_toward_dict(current_tile, target_pos)
+
 func _update_needs():
 	for id in GameState.villagers:
 		var v = GameState.villagers[id] as Dictionary
@@ -438,11 +505,11 @@ func _update_needs():
 		# Resume normal work when needs are satisfied
 		if state == "seeking_food" and needs["hunger"] >= 80.0:
 			v["state"] = "idle"
-			if v["job"] != "builder" and v["job"] != "idle":
+			if v["job"] != "builder" and v["job"] != "idle" and v["job"] != "hauler":
 				v["state"] = "moving_to_work"
 		if state == "seeking_bed" and needs["energy"] >= 80.0:
 			v["state"] = "idle"
-			if v["job"] != "builder" and v["job"] != "idle":
+			if v["job"] != "builder" and v["job"] != "idle" and v["job"] != "hauler":
 				v["state"] = "moving_to_work"
 				# If we were sleeping on the ground and have a blueprint, resume building
 				if v["job"] == "builder":
