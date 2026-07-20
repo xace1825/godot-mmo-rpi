@@ -57,10 +57,17 @@ func _ready():
 		GameState.load_world()
 		# Starting resources are now placed into the first stockpile, not globally
 		print("Server: waiting for first stockpile for starting resources")
+		get_tree().set_auto_accept_quit(false)
 	else:
 		print("Starting CLIENT mode")
 		setup_client()
 		_parse_server_args()
+
+func _notification(what: int):
+	if what == NOTIFICATION_WM_CLOSE_REQUEST and is_server:
+		print("Server: saving world before shutdown")
+		GameState.save_world()
+		get_tree().quit()
 
 func setup_client():
 	Network.building_placed.connect(_on_building_placed)
