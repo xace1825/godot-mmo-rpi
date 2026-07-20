@@ -47,6 +47,9 @@ var drag_current_tile: Vector2i = Vector2i(-1, -1)
 var is_dragging_room: bool = false
 var room_drag_start: Vector2i = Vector2i(-1, -1)
 var room_drag_current: Vector2i = Vector2i(-1, -1)
+var is_dragging_farm: bool = false
+var farm_drag_start: Vector2i = Vector2i(-1, -1)
+var farm_drag_current: Vector2i = Vector2i(-1, -1)
 
 func _ready():
 	is_server = OS.has_feature("dedicated_server") or DisplayServer.get_name() == "headless"
@@ -280,6 +283,22 @@ func _unhandled_input(event):
 							Network.ask_stockpile(top_left, size)
 						drag_start_tile = Vector2i(-1, -1)
 						drag_current_tile = Vector2i(-1, -1)
+			elif selected_build_type == PlanetGenerator.BuildingType.FARM:
+				if event.pressed:
+					is_dragging_farm = true
+					farm_drag_start = tile
+					farm_drag_current = tile
+				else:
+					if is_dragging_farm:
+						is_dragging_farm = false
+						var start := Vector2i(min(farm_drag_start.x, farm_drag_current.x), min(farm_drag_start.y, farm_drag_current.y))
+						var end := Vector2i(max(farm_drag_start.x, farm_drag_current.x), max(farm_drag_start.y, farm_drag_current.y))
+						if end.x >= start.x and end.y >= start.y:
+							print("Client requesting farm plots from ", start, " to ", end)
+							Network.ask_build_farm_plots(start, end)
+						farm_drag_start = Vector2i(-1, -1)
+						farm_drag_current = Vector2i(-1, -1)
+						build_ui.clear_selection()
 			elif build_ui.is_room_mode():
 				if event.pressed:
 					is_dragging_room = true
@@ -304,6 +323,10 @@ func _unhandled_input(event):
 		var tile := tile_map.local_to_map(tile_map.get_local_mouse_position())
 		if tile.x >= 0 and tile.x < WORLD_SIZE and tile.y >= 0 and tile.y < WORLD_SIZE:
 			drag_current_tile = tile
+	elif event is InputEventMouseMotion and is_dragging_farm:
+		var tile := tile_map.local_to_map(tile_map.get_local_mouse_position())
+		if tile.x >= 0 and tile.x < WORLD_SIZE and tile.y >= 0 and tile.y < WORLD_SIZE:
+			farm_drag_current = tile
 	elif event is InputEventMouseMotion and is_dragging_room:
 		var tile := tile_map.local_to_map(tile_map.get_local_mouse_position())
 		if tile.x >= 0 and tile.x < WORLD_SIZE and tile.y >= 0 and tile.y < WORLD_SIZE:
@@ -339,6 +362,13 @@ func _draw():
 					draw_rect(Rect2(Vector2(x * TILE_SIZE, y * TILE_SIZE), Vector2(TILE_SIZE, TILE_SIZE)), Color(0.6, 0.6, 0.65, 0.6), true)
 				else:
 					draw_rect(Rect2(Vector2(x * TILE_SIZE, y * TILE_SIZE), Vector2(TILE_SIZE, TILE_SIZE)), Color(0.7, 0.6, 0.45, 0.4), true)
+	if is_dragging_farm and farm_drag_start.x >= 0 and farm_drag_current.x >= 0:
+		var farm_top_left := Vector2i(min(farm_drag_start.x, farm_drag_current.x), min(farm_drag_start.y, farm_drag_current.y))
+		var farm_bottom_right := Vector2i(max(farm_drag_start.x, farm_drag_current.x), max(farm_drag_start.y, farm_drag_current.y))
+		var farm_rect_pos := Vector2(farm_top_left.x * TILE_SIZE, farm_top_left.y * TILE_SIZE)
+		var farm_rect_size := Vector2((farm_bottom_right.x - farm_top_left.x + 1) * TILE_SIZE, (farm_bottom_right.y - farm_top_left.y + 1) * TILE_SIZE)
+		draw_rect(Rect2(farm_rect_pos, farm_rect_size), Color(0.3, 0.8, 0.3, 0.3), true)
+		draw_rect(Rect2(farm_rect_pos, farm_rect_size), Color(0.3, 0.9, 0.3, 0.8), false, 2.0)
 
 func _on_building_placed(pos: Vector2i, type_id: int):
 	# Floors are stored separately so furniture/buildings can be placed on top

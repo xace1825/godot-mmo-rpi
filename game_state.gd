@@ -296,6 +296,23 @@ func add_room_blueprints(start: Vector2i, end: Vector2i) -> bool:
 	print("Server: added room blueprints walls=", wall_count, " floors=", floor_count, " door at ", door_pos)
 	return true
 
+func add_farm_plots(start: Vector2i, end: Vector2i) -> bool:
+	ensure_world_generated()
+	var tl := Vector2i(min(start.x, end.x), min(start.y, end.y))
+	var br := Vector2i(max(start.x, end.x), max(start.y, end.y))
+	if br.x < tl.x or br.y < tl.y:
+		print("Server: farm plot has zero or negative size")
+		return false
+	var plot_count := 0
+	for x in range(tl.x, br.x + 1):
+		for y in range(tl.y, br.y + 1):
+			var pos := Vector2i(x, y)
+			var type_id := add_blueprint(pos, PlanetGenerator.BuildingType.FARM)
+			if type_id >= 0:
+				plot_count += 1
+	print("Server: added ", plot_count, " farm plot blueprints")
+	return plot_count > 0
+
 func add_stockpile(topleft: Vector2i, size: Vector2i) -> bool:
 	ensure_world_generated()
 	var zone: Array = []

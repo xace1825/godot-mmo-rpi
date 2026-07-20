@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://cfarmplots00001"]
+
+[ext_resource type="Script" path="res://test_farm_plots.gd" id="1_xxx"]
+
+[node name="TestFarmPlots" type="Node"]
+script = ExtResource("1_xxx")
