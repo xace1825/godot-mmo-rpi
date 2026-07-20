@@ -8,6 +8,8 @@ const VILLAGER_MOVE_SPEED: float = 1.0
 const HUNGER_RATE: float = 0.2
 const ENERGY_RATE: float = 0.2
 const NEEDS_THRESHOLD: float = 25.0
+const HOURS_PER_DAY: float = 24.0
+const REAL_SECONDS_PER_GAME_HOUR: float = 10.0
 
 var _tick_timer: float = 0.0
 var _tick_count: int = 0
@@ -18,6 +20,10 @@ func _ready():
 	set_physics_process(false)
 	multiplayer.peer_connected.connect(_on_peer_connected)
 	get_tree().root.set_as_audio_listener_2d(true)
+	if multiplayer.is_server():
+		GameState.time_of_day = 6.0
+		GameState.day_count = 1
+		print("Server: day-night cycle initialized at hour ", GameState.time_of_day)
 
 func _notification(what: int):
 	if what == NOTIFICATION_WM_CLOSE_REQUEST:
@@ -45,6 +51,15 @@ func _physics_process(delta: float):
 			Network.broadcast_villager_sync()
 
 func _tick():
+	# Advance day-night cycle on the server
+	if multiplayer.is_server():
+		GameState.time_of_day += TICK_RATE * Engine.time_scale / REAL_SECONDS_PER_GAME_HOUR
+		if GameState.time_of_day >= HOURS_PER_DAY:
+			GameState.time_of_day -= HOURS_PER_DAY
+			GameState.day_count += 1
+			print("Server: new day ", GameState.day_count)
+		Network.broadcast_day_night_sync()
+	
 	_update_needs()
 	_process_needs()
 	_assign_idle_villagers()

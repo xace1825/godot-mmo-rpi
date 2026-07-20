@@ -21,6 +21,8 @@ var resources: Dictionary = {
 }
 var villagers: Dictionary = {}
 var next_villager_id: int = 1
+var time_of_day: float = 6.0
+var day_count: int = 1
 
 func ensure_world_generated():
 	if world.is_empty():
@@ -688,12 +690,11 @@ func sleep_at_bed(villager_id: String, bed_pos: Vector2i) -> bool:
 func get_world_data() -> Dictionary:
 	ensure_world_generated()
 	var stock_copy := {}
-	for sid: String in stockpiles:
+	for sid in stockpiles:
 		var s: Dictionary = stockpiles[sid]
 		stock_copy[sid] = {
 			"topleft": s["topleft"].duplicate(),
 			"size": s["size"].duplicate(),
-			"zone": s["zone"].duplicate(),
 			"resources": s["resources"].duplicate()
 		}
 	return {
@@ -704,7 +705,9 @@ func get_world_data() -> Dictionary:
 		"stockpiles": stock_copy,
 		"ground_items": ground_items.duplicate(),
 		"resources": resources.duplicate(),
-		"villagers": villagers.duplicate()
+		"villagers": villagers.duplicate(),
+		"time_of_day": time_of_day,
+		"day_count": day_count
 	}
 
 func load_world():
@@ -725,6 +728,8 @@ func load_world():
 		stockpiles = data.get("stockpiles", {})
 		ground_items = data.get("ground_items", {})
 		resources = data.get("resources", {"wood": 0, "food": 0, "stone": 0, "prepared_food": 0, "planks": 0, "blocks": 0})
+		time_of_day = data.get("time_of_day", 6.0)
+		day_count = data.get("day_count", 1)
 		# Migrate missing refined resources
 		for res in ["prepared_food", "planks", "blocks"]:
 			if not resources.has(res):
@@ -787,7 +792,9 @@ func save_world():
 		"ground_items": ground_items,
 		"resources": resources,
 		"villagers": villagers,
-		"next_villager_id": next_villager_id
+		"next_villager_id": next_villager_id,
+		"time_of_day": time_of_day,
+		"day_count": day_count
 	}, "	"))
 	file.close()
 	print("Server: world saved")
@@ -802,7 +809,16 @@ func reset_world():
 	room_station_status.clear()
 	villagers.clear()
 	next_villager_id = 1
-	resources = {"wood": 0, "food": 0, "stone": 0, "prepared_food": 0, "planks": 0, "blocks": 0}
+	time_of_day = 6.0
+	day_count = 1
+	resources = {
+		"wood": 0,
+		"food": 0,
+		"stone": 0,
+		"prepared_food": 0,
+		"planks": 0,
+		"blocks": 0
+	}
 	if FileAccess.file_exists(SAVE_PATH):
 		DirAccess.remove_absolute(SAVE_PATH)
 	create_default_stockpile()

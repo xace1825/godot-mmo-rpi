@@ -71,10 +71,59 @@ func setup_client():
 	Network.resource_sync.connect(_on_resource_sync)
 	Network.world_reset.connect(_on_world_reset)
 	Network.ground_items_sync.connect(_on_ground_items_sync)
+	Network.day_night_sync.connect(_on_day_night_sync)
 	build_ui.build_type_selected.connect(_on_build_type_selected)
 	build_ui.reset_requested.connect(_on_reset_requested)
 	build_ui.spawn_requested.connect(_on_spawn_requested)
 	info_panel = $InfoPanel
+	_setup_day_night_overlay()
+
+var _night_overlay: ColorRect = null
+var _time_label: Label = null
+var _current_time_of_day: float = 6.0
+var _current_day_count: int = 1
+
+func _setup_day_night_overlay():
+	_night_overlay = ColorRect.new()
+	_night_overlay.color = Color(0.05, 0.05, 0.25, 0.0)
+	_night_overlay.anchors_preset = Control.PRESET_FULL_RECT
+	_night_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_night_overlay.z_index = 100
+	get_tree().root.add_child(_night_overlay)
+	
+	_time_label = Label.new()
+	_time_label.position = Vector2(10, 10)
+	_time_label.add_theme_font_size_override("font_size", 18)
+	get_tree().root.add_child(_time_label)
+	_update_time_label()
+
+func _on_day_night_sync(time_of_day: float, day_count: int):
+	_current_time_of_day = time_of_day
+	_current_day_count = day_count
+	_update_time_label()
+	_update_night_overlay()
+
+func _update_time_label():
+	if _time_label == null:
+		return
+	var hour: int = int(_current_time_of_day)
+	var minute: int = int((_current_time_of_day - hour) * 60.0)
+	_time_label.text = "Day %d - %02d:%02d" % [_current_day_count, hour, minute]
+
+func _update_night_overlay():
+	if _night_overlay == null:
+		return
+	# Night is 20:00 - 04:00; peak darkness at midnight
+	var darkness: float = 0.0
+	if _current_time_of_day >= 20.0 or _current_time_of_day <= 4.0:
+		var dist_from_midnight: float = 0.0
+		if _current_time_of_day >= 20.0:
+			dist_from_midnight = (_current_time_of_day - 20.0) / 8.0
+		else:
+			dist_from_midnight = (4.0 - _current_time_of_day) / 8.0
+		dist_from_midnight = clamp(dist_from_midnight, 0.0, 1.0)
+		darkness = sin(dist_from_midnight * PI) * 0.5
+	_night_overlay.color = Color(0.05, 0.05, 0.35, darkness)
 
 var selected_build_type: int = -1
 
@@ -351,6 +400,10 @@ func _on_full_sync(data: Dictionary):
 	var seed_value := data.get("seed", 12345) as int
 	world_data = PlanetGenerator.generate_world(seed_value)
 	chunk_manager = ChunkManager.new(tile_map, world_data)
+	_current_time_of_day = data.get("time_of_day", 6.0)
+	_current_day_count = data.get("day_count", 1)
+	_update_time_label()
+	_update_night_overlay()
 	for pos_str in data.get("floors", {}):
 		var parts: PackedStringArray = pos_str.split(",")
 		var pos = Vector2i(int(parts[0]), int(parts[1]))
@@ -398,6 +451,10 @@ func _on_world_reset(data: Dictionary):
 	camera_initialized = false
 	camera_target_position = Vector2.ZERO
 	camera_frames = 0
+	_current_time_of_day = data.get("time_of_day", 6.0)
+	_current_day_count = data.get("day_count", 1)
+	_update_time_label()
+	_update_night_overlay()
 	# Clear local buildings
 	for pos in client_buildings:
 		if is_instance_valid(client_buildings[pos]):

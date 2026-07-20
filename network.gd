@@ -8,6 +8,7 @@ signal building_placed(pos: Vector2i, type_id: int)
 signal stockpile_added(id: String, data: Dictionary)
 signal world_reset(data: Dictionary)
 signal ground_items_sync(items: Dictionary)
+signal day_night_sync(time_of_day: float, day_count: int)
 
 const DEFAULT_PORT: int = 7777
 
@@ -76,6 +77,10 @@ func place_blueprint(pos: Vector2i, type_id: int):
 @rpc("authority", "call_remote", "reliable")
 func sync_ground_items(items: Dictionary):
 	ground_items_sync.emit(items)
+
+@rpc("authority", "call_remote", "unreliable")
+func sync_day_night(time_of_day: float, day_count: int):
+	day_night_sync.emit(time_of_day, day_count)
 
 func _is_peer_connected() -> bool:
 	if not multiplayer.has_multiplayer_peer():
@@ -273,8 +278,13 @@ func broadcast_ground_items_sync():
 		rpc("sync_ground_items", GameState.ground_items.duplicate())
 		_broadcast_state()
 
+func broadcast_day_night_sync():
+	if multiplayer.has_multiplayer_peer():
+		rpc("sync_day_night", GameState.time_of_day, GameState.day_count)
+
 func _on_peer_connected(id: int):
 	print("Peer connected: ", id)
 	if multiplayer.is_server():
 		_broadcast_state()
 		rpc_id(id, "sync_villagers", GameState.villagers.duplicate())
+		rpc_id(id, "sync_day_night", GameState.time_of_day, GameState.day_count)
