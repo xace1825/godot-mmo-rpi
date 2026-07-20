@@ -79,6 +79,7 @@ func setup_client():
 	Network.world_reset.connect(_on_world_reset)
 	Network.ground_items_sync.connect(_on_ground_items_sync)
 	Network.day_night_sync.connect(_on_day_night_sync)
+	Network.job_priority_sync.connect(_on_job_priority_sync)
 	build_ui.build_type_selected.connect(_on_build_type_selected)
 	build_ui.reset_requested.connect(_on_reset_requested)
 	build_ui.spawn_requested.connect(_on_spawn_requested)
@@ -109,6 +110,9 @@ func _on_day_night_sync(time_of_day: float, day_count: int):
 	_current_day_count = day_count
 	_update_time_label()
 	_update_night_overlay()
+
+func _on_job_priority_sync(priorities: Dictionary):
+	build_ui.update_job_priorities(priorities)
 
 func _update_time_label():
 	if _time_label == null:

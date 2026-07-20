@@ -96,7 +96,7 @@ func _assign_idle_villagers():
 
 		# Priority: if there are any unfinished blueprints, become a builder first.
 		var bp_key := _find_nearest_blueprint(sid)
-		if bp_key != "":
+		if bp_key != "" and GameState.is_job_priority_enabled("builder"):
 			var bp = GameState.blueprints[bp_key] as Dictionary
 			var pos = Vector2i(int(bp["pos"]["x"]), int(bp["pos"]["y"]))
 			v["job"] = "builder"
@@ -115,14 +115,14 @@ func _assign_idle_villagers():
 			var key: String = _pos_key(station_pos)
 			var station_type: int = GameState.buildings[key]
 			var job := PlanetGenerator.get_job_type(station_type)
-			if job != "":
+			if job != "" and GameState.is_job_priority_enabled(job):
 				v["job"] = job
 				v["workplace"] = {"x": station_pos.x, "y": station_pos.y}
 				v["state"] = "moving_to_work"
 				print("Server: idle villager ", id, " assigned as ", job, " at ", station_pos)
 				continue
 		# If nothing else, become a hauler and pick up ground items
-		if GameState.ground_items.size() > 0:
+		if GameState.ground_items.size() > 0 and GameState.is_job_priority_enabled("hauler"):
 			v["job"] = "hauler"
 			v["workplace"] = {}
 			v["state"] = "idle"

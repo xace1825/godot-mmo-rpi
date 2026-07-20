@@ -43,6 +43,11 @@ layout_mode = 2
 size_flags_horizontal = 3
 text = "ЛОГИСТИКА"
 
+[node name="JobsButton" type="Button" parent="MainPanel/MainHBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "РАБОТЫ"
+
 [node name="SpawnButton" type="Button" parent="MainPanel/MainHBox"]
 layout_mode = 2
 size_flags_horizontal = 3

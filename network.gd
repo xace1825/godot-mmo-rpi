@@ -9,6 +9,7 @@ signal stockpile_added(id: String, data: Dictionary)
 signal world_reset(data: Dictionary)
 signal ground_items_sync(items: Dictionary)
 signal day_night_sync(time_of_day: float, day_count: int)
+signal job_priority_sync(priorities: Dictionary)
 
 const DEFAULT_PORT: int = 7777
 
@@ -150,6 +151,10 @@ func broadcast_resource_sync():
 	if multiplayer.has_multiplayer_peer():
 		rpc("sync_resources", GameState.resources.duplicate())
 
+func broadcast_job_priority_sync():
+	if multiplayer.has_multiplayer_peer():
+		rpc("sync_job_priorities", GameState.job_priorities.duplicate())
+
 func broadcast_blueprint_placed(pos: Vector2i, type_id: int):
 	if multiplayer.has_multiplayer_peer():
 		rpc("place_blueprint", pos, type_id)
@@ -168,6 +173,14 @@ func ask_spawn_villager():
 		return
 	rpc_id(1, "request_spawn_villager")
 
+func ask_save_world():
+	if multiplayer.is_server():
+		return
+	if not _is_peer_connected():
+		push_warning("Cannot ask_save_world: peer not connected")
+		return
+	rpc_id(1, "request_save_world")
+
 func ask_set_job(villager_id: String, job: String):
 	if multiplayer.is_server():
 		return
@@ -175,6 +188,14 @@ func ask_set_job(villager_id: String, job: String):
 		push_warning("Cannot ask_set_job: villager not connected")
 		return
 	rpc_id(1, "request_set_job", villager_id, job)
+
+func ask_toggle_job_priority(job: String):
+	if multiplayer.is_server():
+		return
+	if not _is_peer_connected():
+		push_warning("Cannot ask_toggle_job_priority: not connected")
+		return
+	rpc_id(1, "request_toggle_job_priority", job)
 
 func ask_drop_item(pos: Vector2i, resource: String, amount: int):
 	if multiplayer.is_server():
@@ -191,6 +212,24 @@ func ask_build_room(start: Vector2i, end: Vector2i):
 		push_warning("Cannot ask_build_room: not connected")
 		return
 	rpc_id(1, "request_build_room", start, end)
+
+@rpc("any_peer", "call_remote", "reliable")
+func request_toggle_job_priority(job: String):
+	if not multiplayer.is_server():
+		return
+	if not GameState.job_priorities.has(job):
+		print("Server: unknown job priority toggle request: ", job)
+		return
+	var enabled: bool = not GameState.job_priorities[job]
+	GameState.set_job_priority(job, enabled)
+	broadcast_job_priority_sync()
+
+@rpc("authority", "call_local", "reliable")
+func sync_job_priorities(priorities: Dictionary):
+	if multiplayer.is_server():
+		return
+	print("Client: received job priority sync")
+	job_priority_sync.emit(priorities)
 
 @rpc("any_peer", "call_remote", "reliable")
 func request_build_room(start: Vector2i, end: Vector2i):
@@ -250,6 +289,13 @@ func ask_reset_world():
 	rpc_id(1, "request_reset_world")
 
 @rpc("any_peer", "call_remote", "reliable")
+func request_save_world():
+	if not multiplayer.is_server():
+		return
+	print("Server: save world requested by peer ", multiplayer.get_remote_sender_id())
+	GameState.save_world()
+
+@rpc("any_peer", "call_remote", "reliable")
 func request_reset_world():
 	if not multiplayer.is_server():
 		return
@@ -288,3 +334,4 @@ func _on_peer_connected(id: int):
 		_broadcast_state()
 		rpc_id(id, "sync_villagers", GameState.villagers.duplicate())
 		rpc_id(id, "sync_day_night", GameState.time_of_day, GameState.day_count)
+		rpc_id(id, "sync_job_priorities", GameState.job_priorities.duplicate())

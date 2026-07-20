@@ -11,6 +11,32 @@ signal spawn_requested()
 
 var selected_type: int = -1
 var current_category: int = -1
+var job_priority_mode: bool = false
+var current_priorities: Dictionary = {}
+
+const PRIORITY_JOBS := [
+	"builder",
+	"lumberjack",
+	"miner",
+	"farmer",
+	"cook",
+	"carpenter",
+	"mason",
+	"toolsmith",
+	"hauler"
+]
+
+const JOB_PRIORITY_NAMES := {
+	"builder": "Строитель",
+	"lumberjack": "Лесоруб",
+	"miner": "Шахтер",
+	"farmer": "Фермер",
+	"cook": "Повар",
+	"carpenter": "Столяр",
+	"mason": "Каменщик",
+	"toolsmith": "Кузнец",
+	"hauler": "Носильщик"
+}
 
 const CATEGORY_BUTTONS := {
 	"StructuresButton": PlanetGenerator.BuildCategory.STRUCTURES,
@@ -118,6 +144,11 @@ func _on_main_button_pressed(button: Button):
 		spawn_requested.emit()
 		button.accept_event()
 		return
+	if button.name == "JobsButton":
+		print("BuildUI: job priorities opened")
+		_open_job_priority_panel(button)
+		button.accept_event()
+		return
 	var category = CATEGORY_BUTTONS.get(button.name, -1)
 	if category >= 0:
 		_open_category(category, button)
@@ -125,6 +156,7 @@ func _on_main_button_pressed(button: Button):
 
 func _open_category(category: int, button: Button):
 	current_category = category
+	job_priority_mode = false
 	_clear_sub_buttons()
 	for type_id in CATEGORY_BUILDINGS[category]:
 		var sub := Button.new()
@@ -139,6 +171,31 @@ func _open_category(category: int, button: Button):
 		sub_container.add_child(sub)
 	sub_panel.visible = true
 	_highlight_main_button(button)
+
+func _open_job_priority_panel(button: Button):
+	job_priority_mode = true
+	current_category = -1
+	_clear_sub_buttons()
+	for job in PRIORITY_JOBS:
+		var sub := Button.new()
+		var enabled: bool = current_priorities.get(job, true)
+		var label: String = JOB_PRIORITY_NAMES.get(job, job)
+		sub.text = label + "\n" + ("[ВКЛ]" if enabled else "[ВЫКЛ]")
+		sub.add_theme_font_size_override("font_size", 14)
+		sub.mouse_filter = Control.MOUSE_FILTER_STOP
+		sub.set_meta("job", job)
+		var base: Color = Color(0.3, 0.6, 0.3) if enabled else Color(0.6, 0.3, 0.3)
+		sub.add_theme_color_override("font_color", Color.WHITE)
+		sub.add_theme_stylebox_override("normal", _make_stylebox(base, 0.9))
+		sub.pressed.connect(_on_priority_button_pressed.bind(sub))
+		sub_container.add_child(sub)
+	sub_panel.visible = true
+	_highlight_main_button(button)
+
+func update_job_priorities(priorities: Dictionary):
+	current_priorities = priorities.duplicate()
+	if job_priority_mode:
+		_open_job_priority_panel($MainPanel/MainHBox/JobsButton)
 
 func _clear_sub_buttons():
 	for child in sub_container.get_children():
@@ -158,8 +215,15 @@ func _on_sub_button_pressed(button: Button):
 	_highlight_sub_button(button)
 	button.accept_event()
 
+func _on_priority_button_pressed(button: Button):
+	var job: String = button.get_meta("job", "")
+	if job == "":
+		return
+	Network.ask_toggle_job_priority(job)
+	button.accept_event()
+
 func is_room_mode() -> bool:
-	return selected_type == -1
+	return selected_type == -1 and not job_priority_mode
 
 func clear_selection():
 	selected_type = -1

@@ -24,6 +24,17 @@ var villagers: Dictionary = {}
 var next_villager_id: int = 1
 var time_of_day: float = 6.0
 var day_count: int = 1
+var job_priorities: Dictionary = {
+	"builder": true,
+	"lumberjack": true,
+	"miner": true,
+	"farmer": true,
+	"cook": true,
+	"carpenter": true,
+	"mason": true,
+	"toolsmith": true,
+	"hauler": true
+}
 
 func ensure_world_generated():
 	if world.is_empty():
@@ -701,6 +712,15 @@ func equip_tool_from_stockpile(villager_id: String) -> bool:
 	print("Server: villager ", villager_id, " equipped tool from ", stock_id)
 	return true
 
+func set_job_priority(job: String, enabled: bool) -> void:
+	if not job_priorities.has(job):
+		return
+	job_priorities[job] = enabled
+	print("Server: job priority ", job, " set to ", enabled)
+
+func is_job_priority_enabled(job: String) -> bool:
+	return job_priorities.get(job, true)
+
 func is_indoor(pos: Vector2i) -> bool:
 	var room_idx := get_room_at(pos)
 	if room_idx < 0:
@@ -755,7 +775,8 @@ func get_world_data() -> Dictionary:
 		"resources": resources.duplicate(),
 		"villagers": villagers.duplicate(),
 		"time_of_day": time_of_day,
-		"day_count": day_count
+		"day_count": day_count,
+		"job_priorities": job_priorities.duplicate()
 	}
 
 func load_world():
@@ -778,8 +799,9 @@ func load_world():
 		resources = data.get("resources", {"wood": 0, "food": 0, "stone": 0, "prepared_food": 0, "planks": 0, "blocks": 0})
 		time_of_day = data.get("time_of_day", 6.0)
 		day_count = data.get("day_count", 1)
-		# Migrate missing refined resources
-		for res in ["prepared_food", "planks", "blocks"]:
+		job_priorities = data.get("job_priorities", job_priorities.duplicate())
+		# Migrate missing refined resources and tools
+		for res in ["prepared_food", "planks", "blocks", "tools"]:
 			if not resources.has(res):
 				resources[res] = 0
 		villagers = data.get("villagers", {})
@@ -842,7 +864,8 @@ func save_world():
 		"villagers": villagers,
 		"next_villager_id": next_villager_id,
 		"time_of_day": time_of_day,
-		"day_count": day_count
+		"day_count": day_count,
+		"job_priorities": job_priorities
 	}, "	"))
 	file.close()
 	print("Server: world saved")
@@ -865,7 +888,19 @@ func reset_world():
 		"stone": 0,
 		"prepared_food": 0,
 		"planks": 0,
-		"blocks": 0
+		"blocks": 0,
+		"tools": 0
+	}
+	job_priorities = {
+		"builder": true,
+		"lumberjack": true,
+		"miner": true,
+		"farmer": true,
+		"cook": true,
+		"carpenter": true,
+		"mason": true,
+		"toolsmith": true,
+		"hauler": true
 	}
 	if FileAccess.file_exists(SAVE_PATH):
 		DirAccess.remove_absolute(SAVE_PATH)

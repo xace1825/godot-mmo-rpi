@@ -55,6 +55,9 @@ func _physics_process(_delta):
 				phase_entered = true
 				print("TEST: phase1 complete, wood=", last_wood)
 				_pass("phase1 produced wood")
+				Network.ask_save_world()
+				print("TEST: requested explicit save")
+				await get_tree().create_timer(1.0).timeout
 				_finish()
 
 var last_wood := 0
