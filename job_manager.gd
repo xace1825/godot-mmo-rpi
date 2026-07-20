@@ -477,14 +477,23 @@ func _update_needs():
 			continue
 		needs["hunger"] = max(needs["hunger"] - HUNGER_RATE, 0.0)
 		needs["energy"] = max(needs["energy"] - ENERGY_RATE, 0.0)
+		# Comfort decays slowly outdoors, recovers indoors on floor
+		var current_tile = Vector2i(int(round(v["pos"]["x"])), int(round(v["pos"]["y"])))
+		if state == "seeking_bed" or state == "sleeping":
+			# Comfort change handled in _process_needs while sleeping
+			pass
+		elif GameState.is_indoor(current_tile) and GameState.has_floor_or_stockpile(current_tile):
+			needs["comfort"] = min(needs["comfort"] + 0.5, 100.0)
+		else:
+			needs["comfort"] = max(needs["comfort"] - 0.3, 0.0)
 		# Prioritize finishing the current need before switching to the other one.
 		if state == "seeking_bed":
-			# Only interrupt sleep for food if energy is already decent
-			if needs["hunger"] <= NEEDS_THRESHOLD and needs["energy"] >= 80.0:
+			# Do not interrupt sleep for food unless starving
+			if needs["hunger"] <= 10.0:
 				v["state"] = "seeking_food"
 				v["to_pos"] = v["pos"].duplicate()
 				v["from_pos"] = v["pos"].duplicate()
-				print("Server: villager ", id, " is hungry, seeking food")
+				print("Server: villager ", id, " is starving, seeking food before bed")
 		elif state == "seeking_food":
 			# Only interrupt eating for sleep if hunger is already decent
 			if needs["energy"] <= NEEDS_THRESHOLD and needs["hunger"] >= 80.0:
@@ -543,7 +552,14 @@ func _process_needs():
 					v["state"] = "moving_to_work"
 				print("Server: villager ", id, " finished eating")
 		elif state == "sleeping":
-			v["needs"]["energy"] = min(v["needs"]["energy"] + 15.0, 100.0)
+			var bed_boost := 1.0
+			var comfort_boost := -1.0
+			# Check if actually on a bed tile
+			if GameState.buildings.has(GameState._pos_key(current_tile)) and GameState.buildings[GameState._pos_key(current_tile)] == PlanetGenerator.BuildingType.BED:
+				bed_boost = 3.0
+				comfort_boost = 5.0
+			v["needs"]["energy"] = min(v["needs"]["energy"] + 25.0 * bed_boost, 100.0)
+			v["needs"]["comfort"] = min(v["needs"]["comfort"] + comfort_boost, 100.0)
 			if v["needs"]["energy"] >= 90.0:
 				v["state"] = "idle"
 				if v["job"] != "builder" and v["job"] != "idle":
@@ -552,12 +568,13 @@ func _process_needs():
 		elif state == "seeking_bed":
 			var bed_pos := GameState.find_nearest_bed(current_tile)
 			if bed_pos.x == -1 and bed_pos.y == -1:
-				v["needs"]["energy"] = min(v["needs"]["energy"] + 5.0, 100.0)
+				v["needs"]["energy"] = min(v["needs"]["energy"] + 10.0, 100.0)
+				v["needs"]["comfort"] = max(v["needs"]["comfort"] - 2.0, 0.0)
 				if v["needs"]["energy"] >= 90.0:
 					v["state"] = "idle"
 					if v["job"] != "builder" and v["job"] != "idle":
 						v["state"] = "moving_to_work"
-					print("Server: villager ", id, " slept on the ground and recovered")
+						print("Server: villager ", id, " slept on the ground and recovered")
 				continue
 			if current_tile == bed_pos:
 				GameState.sleep_at_bed(id, bed_pos)

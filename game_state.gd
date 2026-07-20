@@ -41,9 +41,14 @@ func is_walkable(pos: Vector2i) -> bool:
 	if not PlanetGenerator.is_walkable_tile(get_tile_type(pos)):
 		return false
 	var key: String = _pos_key(pos)
-	# If a building occupies the tile, it controls walkability
+	# If a completed building occupies the tile, it controls walkability
 	if buildings.has(key):
 		return PlanetGenerator.is_walkable_building(buildings[key])
+	# Door blueprints are walkable so builders can enter rooms during construction
+	if blueprints.has(key):
+		var bp: Dictionary = blueprints[key]
+		if bp.get("type", -1) == PlanetGenerator.BuildingType.DOOR:
+			return true
 	# Floors are always walkable
 	if floors.has(key):
 		return true
@@ -151,7 +156,16 @@ func _pos_key(pos: Vector2i) -> String:
 func add_blueprint(pos: Vector2i, building_type: int = -1) -> int:
 	ensure_world_generated()
 	var key = _pos_key(pos)
-	if blueprints.has(key) or buildings.has(key):
+	if blueprints.has(key):
+		var existing: Dictionary = blueprints[key]
+		# Allow furniture/buildings to replace a planned floor blueprint (RimWorld-style)
+		if existing.get("type", -1) == PlanetGenerator.BuildingType.FLOOR and building_type != PlanetGenerator.BuildingType.FLOOR:
+			print("Server: replacing floor blueprint with building at ", key)
+			blueprints.erase(key)
+		else:
+			print("Server: tile already occupied")
+			return -1
+	if buildings.has(key):
 		print("Server: tile already occupied")
 		return -1
 	if _pos_in_stockpile(pos):
@@ -164,6 +178,7 @@ func add_blueprint(pos: Vector2i, building_type: int = -1) -> int:
 	var type_id := building_type
 	if type_id < 0:
 		type_id = PlanetGenerator.get_station_type(tile_type)
+	# Allow buildings on top of existing floors (RimWorld-style)
 	var cost := PlanetGenerator.get_build_cost(type_id)
 	blueprints[key] = {
 		"type": type_id,
@@ -206,16 +221,30 @@ func add_room_blueprints(start: Vector2i, end: Vector2i) -> bool:
 			print("Server: not enough ", res, " for room (need ", needed[res], ", have ", total_available.get(res, 0), ")")
 			return false
 	
-	# Choose door position on perimeter closest to drag start
-	var door_pos := tl
-	var best_dist: int = 999999
-	for x in range(tl.x, br.x + 1):
-		for y in range(tl.y, br.y + 1):
-			if x == tl.x or x == br.x or y == tl.y or y == br.y:
-				var d: int = abs(x - start.x) + abs(y - start.y)
-				if d < best_dist:
-					best_dist = d
-					door_pos = Vector2i(x, y)
+	# Choose door position on the side closest to drag start, in the middle of that side
+	var door_pos := Vector2i((tl.x + br.x) / 2, tl.y)
+	var side_top: int = abs(tl.y - start.y)
+	var side_bottom: int = abs(br.y - start.y)
+	var side_left: int = abs(tl.x - start.x)
+	var side_right: int = abs(br.x - start.x)
+	var best_side: int = min(side_top, min(side_bottom, min(side_left, side_right)))
+	if best_side == side_top:
+		door_pos = Vector2i(clamp(start.x, tl.x + 1, br.x - 1), tl.y)
+	elif best_side == side_bottom:
+		door_pos = Vector2i(clamp(start.x, tl.x + 1, br.x - 1), br.y)
+	elif best_side == side_left:
+		door_pos = Vector2i(tl.x, clamp(start.y, tl.y + 1, br.y - 1))
+	else:
+		door_pos = Vector2i(br.x, clamp(start.y, tl.y + 1, br.y - 1))
+	# Fallback to ensure door is on perimeter and not a corner
+	if door_pos.x == tl.x and door_pos.y == tl.y:
+		door_pos = Vector2i(tl.x + 1, tl.y)
+	elif door_pos.x == br.x and door_pos.y == tl.y:
+		door_pos = Vector2i(br.x - 1, tl.y)
+	elif door_pos.x == tl.x and door_pos.y == br.y:
+		door_pos = Vector2i(tl.x + 1, br.y)
+	elif door_pos.x == br.x and door_pos.y == br.y:
+		door_pos = Vector2i(br.x - 1, br.y)
 	
 	# Pay for the room immediately from nearest stockpile(s)
 	var center := Vector2i((tl.x + br.x) / 2, (tl.y + br.y) / 2)
@@ -299,13 +328,13 @@ func spawn_villager(pos: Vector2i, job: String = "idle") -> int:
 		"job": job,
 		"state": "idle",
 		"progress": 0.0,
-			"carrying": {"resource": "", "amount": 0},
+		"carrying": {"resource": "", "amount": 0},
 		"target_blueprint": "",
 		"building_type": -1,
 		"needs": {
-			"hunger": 80.0,
-			"energy": 80.0,
-			"comfort": 50.0
+			"hunger": 100.0,
+			"energy": 100.0,
+			"comfort": 80.0
 		}
 	}
 	villagers[str(id)] = v
@@ -391,6 +420,10 @@ func complete_blueprint(pos: Vector2i) -> bool:
 		floors[key] = completed_type
 	else:
 		buildings[key] = completed_type
+		# When a non-floor building completes on a tile that had a floor blueprint,
+		# ensure the floor exists underneath for gameplay consistency.
+		if not floors.has(key):
+			floors[key] = PlanetGenerator.BuildingType.FLOOR
 	blueprints.erase(key)
 	_recalc_total_resources()
 	if PlanetGenerator.is_station(completed_type):
@@ -618,6 +651,16 @@ func set_villager_job(villager_id: String, job: String) -> bool:
 	print("Server: villager ", villager_id, " job manually set to ", job)
 	return true
 
+func is_indoor(pos: Vector2i) -> bool:
+	var room_idx := get_room_at(pos)
+	if room_idx < 0:
+		return false
+	return rooms[room_idx].get("is_enclosed", false)
+
+func has_floor_or_stockpile(pos: Vector2i) -> bool:
+	var key := _pos_key(pos)
+	return floors.has(key) or _pos_in_stockpile(pos)
+
 func find_nearest_bed(pos: Vector2i) -> Vector2i:
 	var best_pos := Vector2i(-1, -1)
 	var best_dist := 999999.0
@@ -638,9 +681,8 @@ func sleep_at_bed(villager_id: String, bed_pos: Vector2i) -> bool:
 	if not buildings.has(key) or buildings[key] != PlanetGenerator.BuildingType.BED:
 		return false
 	var v: Dictionary = villagers[villager_id]
-	v["needs"]["energy"] = 100.0
-	v["needs"]["comfort"] = min(v["needs"]["comfort"] + 20.0, 100.0)
-	print("Server: villager ", villager_id, " slept at bed ", bed_pos, " energy=100")
+	v["needs"]["comfort"] = min(v["needs"]["comfort"] + 5.0, 100.0)
+	print("Server: villager ", villager_id, " went to bed ", bed_pos)
 	return true
 
 func get_world_data() -> Dictionary:
@@ -691,7 +733,12 @@ func load_world():
 		# Ensure old villagers have needs data
 		for vid: String in villagers:
 			if not villagers[vid].has("needs"):
-				villagers[vid]["needs"] = {"hunger": 80.0, "energy": 80.0, "comfort": 50.0}
+				villagers[vid]["needs"] = {"hunger": 100.0, "energy": 100.0, "comfort": 80.0}
+			else:
+				# Clamp loaded needs so old saves don't start exhausted
+				villagers[vid]["needs"]["hunger"] = clamp(villagers[vid]["needs"].get("hunger", 80.0), 50.0, 100.0)
+				villagers[vid]["needs"]["energy"] = clamp(villagers[vid]["needs"].get("energy", 80.0), 50.0, 100.0)
+				villagers[vid]["needs"]["comfort"] = clamp(villagers[vid]["needs"].get("comfort", 50.0), 30.0, 100.0)
 			# Ensure workplace/target_blueprint are dictionaries, not null
 			if not villagers[vid].has("workplace") or villagers[vid]["workplace"] == null:
 				villagers[vid]["workplace"] = {}
