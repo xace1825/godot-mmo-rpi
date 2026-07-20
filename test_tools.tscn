@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://ct8tools00000"]
+
+[ext_resource type="Script" path="res://test_tools.gd" id="1_xxx"]
+
+[node name="TestTools" type="Node"]
+script = ExtResource("1_xxx")

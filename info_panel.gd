@@ -18,6 +18,7 @@ const JOB_NAMES := {
 	"builder": "Строитель",
 	"carpenter": "Столяр",
 	"mason": "Каменщик",
+	"toolsmith": "Кузнец",
 	"hauler": "Носильщик"
 }
 

@@ -17,7 +17,8 @@ var resources: Dictionary = {
 	"stone": 0,
 	"prepared_food": 0,
 	"planks": 0,
-	"blocks": 0
+	"blocks": 0,
+	"tools": 0
 }
 var villagers: Dictionary = {}
 var next_villager_id: int = 1
@@ -304,11 +305,11 @@ func add_stockpile(topleft: Vector2i, size: Vector2i) -> bool:
 		"topleft": {"x": topleft.x, "y": topleft.y},
 		"size": {"x": size.x, "y": size.y},
 		"zone": zone,
-		"resources": {"wood": 0, "food": 0, "stone": 0, "prepared_food": 0, "planks": 0, "blocks": 0}
+		"resources": {"wood": 0, "food": 0, "stone": 0, "prepared_food": 0, "planks": 0, "blocks": 0, "tools": 0}
 	}
 	# Starting resources go to the first stockpile so construction can happen
 	if is_first_stockpile:
-		stockpiles[stock_id]["resources"] = {"wood": 500, "stone": 500, "food": 500, "prepared_food": 100, "planks": 100, "blocks": 100}
+		stockpiles[stock_id]["resources"] = {"wood": 500, "stone": 500, "food": 500, "prepared_food": 100, "planks": 100, "blocks": 100, "tools": 20}
 		print("Server: placed starting resources into first stockpile ", stock_id)
 	_recalc_total_resources()
 	print("Server: added stockpile ", stock_id, " with ", zone.size(), " tiles")
@@ -337,7 +338,8 @@ func spawn_villager(pos: Vector2i, job: String = "idle") -> int:
 			"hunger": 100.0,
 			"energy": 100.0,
 			"comfort": 80.0
-		}
+		},
+		"equipment": {"tool": ""}
 	}
 	villagers[str(id)] = v
 	print("Server: spawned villager ", id, " at ", pos.x, ",", pos.y, " job ", job)
@@ -595,11 +597,17 @@ func get_ground_items_data() -> Dictionary:
 	return ground_items.duplicate()
 
 func _recalc_total_resources():
-	resources = {"wood": 0, "food": 0, "stone": 0, "prepared_food": 0, "planks": 0, "blocks": 0}
+	resources = {"wood": 0, "food": 0, "stone": 0, "prepared_food": 0, "planks": 0, "blocks": 0, "tools": 0}
 	for stock_id: String in stockpiles:
 		var stock: Dictionary = stockpiles[stock_id]
 		for res: String in resources:
 			resources[res] += stock["resources"].get(res, 0)
+
+func get_stockpile_resources_at(pos: Vector2i, resource: String) -> int:
+	var stock_id := get_stockpile_at(pos)
+	if stock_id == "":
+		return 0
+	return stockpiles[stock_id]["resources"].get(resource, 0)
 
 func get_stockpile_at(pos: Vector2i) -> String:
 	var key: String = _pos_key(pos)
@@ -607,7 +615,6 @@ func get_stockpile_at(pos: Vector2i) -> String:
 		if key in stockpiles[stock_id]["zone"]:
 			return stock_id
 	return ""
-
 
 func consume_food_for_villager(villager_id: String) -> bool:
 	if not villagers.has(villager_id):
@@ -637,10 +644,13 @@ func consume_food_for_villager(villager_id: String) -> bool:
 func set_villager_job(villager_id: String, job: String) -> bool:
 	if not villagers.has(villager_id):
 		return false
-	var valid_jobs: Array[String] = ["idle", "lumberjack", "miner", "farmer", "cook", "builder", "carpenter", "mason", "hauler"]
+	var valid_jobs: Array[String] = ["idle", "lumberjack", "miner", "farmer", "cook", "builder", "carpenter", "mason", "toolsmith", "hauler"]
 	if not valid_jobs.has(job):
 		return false
 	var v: Dictionary = villagers[villager_id]
+	# Unequip tool when leaving a tool-using job
+	if v["job"] in ["lumberjack", "miner", "farmer", "cook", "carpenter", "mason", "toolsmith"]:
+		_unequip_tool(villager_id)
 	v["job"] = job
 	v["state"] = "idle"
 	v["target_blueprint"] = ""
@@ -651,6 +661,44 @@ func set_villager_job(villager_id: String, job: String) -> bool:
 	v["from_pos"] = v["pos"].duplicate()
 	v["move_progress"] = 0.0
 	print("Server: villager ", villager_id, " job manually set to ", job)
+	return true
+
+func _unequip_tool(villager_id: String) -> void:
+	if not villagers.has(villager_id):
+		return
+	var v: Dictionary = villagers[villager_id]
+	var eq: Dictionary = v.get("equipment", {})
+	if eq.get("tool", "") == "":
+		return
+	var pos := Vector2i(int(round(v["pos"]["x"])), int(round(v["pos"]["y"])))
+	var stock_id: String = find_nearest_stockpile(pos)
+	if stock_id == "":
+		_drop_item_on_ground(pos, "tools", 1)
+	else:
+		stockpiles[stock_id]["resources"]["tools"] += 1
+		Network.broadcast_stockpile_update(stock_id, stockpiles[stock_id].duplicate())
+	eq["tool"] = ""
+	_recalc_total_resources()
+	Network.broadcast_resource_sync()
+	print("Server: villager ", villager_id, " unequipped tool")
+
+func equip_tool_from_stockpile(villager_id: String) -> bool:
+	if not villagers.has(villager_id):
+		return false
+	var v: Dictionary = villagers[villager_id]
+	var eq: Dictionary = v.get("equipment", {})
+	if eq.get("tool", "") == "tool":
+		return true
+	var pos := Vector2i(int(round(v["pos"]["x"])), int(round(v["pos"]["y"])))
+	var stock_id: String = find_stockpile_with_resources(pos, {"tools": 1}, {"tools": 0})
+	if stock_id == "":
+		return false
+	stockpiles[stock_id]["resources"]["tools"] -= 1
+	_recalc_total_resources()
+	Network.broadcast_stockpile_update(stock_id, stockpiles[stock_id].duplicate())
+	Network.broadcast_resource_sync()
+	eq["tool"] = "tool"
+	print("Server: villager ", villager_id, " equipped tool from ", stock_id)
 	return true
 
 func is_indoor(pos: Vector2i) -> bool:

@@ -378,6 +378,13 @@ func _process_workers():
 		else:
 			if station_is_indoor:
 				speed_mult = 0.6
+		# Equip tool for production jobs if available; tool doubles work speed
+		if v["state"] == "moving_to_work":
+			GameState.equip_tool_from_stockpile(str(id))
+		elif v["state"] == "working":
+			var eq = v.get("equipment", {}) as Dictionary
+			if eq.get("tool", "") == "tool":
+				speed_mult *= 2.0
 
 		match v["state"]:
 			"moving_to_work":

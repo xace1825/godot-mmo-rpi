@@ -38,7 +38,8 @@ const CATEGORY_BUILDINGS := {
 		PlanetGenerator.BuildingType.MINE,
 		PlanetGenerator.BuildingType.KITCHEN,
 		PlanetGenerator.BuildingType.CARPENTER,
-		PlanetGenerator.BuildingType.MASON
+		PlanetGenerator.BuildingType.MASON,
+		PlanetGenerator.BuildingType.SMITHY
 	],
 	PlanetGenerator.BuildCategory.LOGISTICS: [
 		PlanetGenerator.BuildingType.STOCKPILE
@@ -57,6 +58,7 @@ const TYPE_ICONS := {
 	PlanetGenerator.BuildingType.KITCHEN: "[Кух]",
 	PlanetGenerator.BuildingType.CARPENTER: "[Ст]",
 	PlanetGenerator.BuildingType.MASON: "[Ка]",
+	PlanetGenerator.BuildingType.SMITHY: "[Кз]",
 	-1: "[Км]"
 }
 
@@ -72,6 +74,7 @@ const RU_NAMES := {
 	PlanetGenerator.BuildingType.KITCHEN: "Кухня",
 	PlanetGenerator.BuildingType.CARPENTER: "Столярная",
 	PlanetGenerator.BuildingType.MASON: "Каменотёсная",
+	PlanetGenerator.BuildingType.SMITHY: "Кузница",
 	-1: "Комната"
 }
 
@@ -87,6 +90,7 @@ const TYPE_COLORS := {
 	PlanetGenerator.BuildingType.KITCHEN: Color(0.9, 0.4, 0.3),
 	PlanetGenerator.BuildingType.CARPENTER: Color(0.75, 0.6, 0.35),
 	PlanetGenerator.BuildingType.MASON: Color(0.6, 0.55, 0.55),
+	PlanetGenerator.BuildingType.SMITHY: Color(0.5, 0.55, 0.65),
 	-1: Color(0.5, 0.7, 0.9)
 }
 
