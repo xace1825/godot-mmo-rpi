@@ -715,7 +715,7 @@ func _unequip_tool(villager_id: String) -> void:
 	_recalc_total_resources()
 	Network.broadcast_resource_sync()
 
-func equip_tool_from_stockpile(villager_id: String) -> bool:
+func equip_tool_from_stockpile(villager_id: String, quality: String = "") -> bool:
 	if not villagers.has(villager_id):
 		return false
 	var v: Dictionary = villagers[villager_id]
@@ -731,11 +731,44 @@ func equip_tool_from_stockpile(villager_id: String) -> bool:
 	_recalc_total_resources()
 	Network.broadcast_stockpile_update(stock_id, stockpiles[stock_id].duplicate())
 	Network.broadcast_resource_sync()
-	eq["tool"] = {"type": "tool", "durability": 100, "max_durability": 100, "quality": "normal"}
-	print("Server: villager ", villager_id, " equipped tool from ", stock_id)
+	var q: String = quality
+	if q == "":
+		q = roll_tool_quality()
+	var data: Dictionary = get_tool_quality_data(q)
+	eq["tool"] = {"type": "tool", "durability": data.max_durability, "max_durability": data.max_durability, "quality": q}
+	print("Server: villager ", villager_id, " equipped ", q, " tool from ", stock_id)
 	return true
 
-func damage_tool(villager_id: String, amount: int) -> bool:
+func roll_tool_quality() -> String:
+	var roll: float = randf()
+	if roll < 0.05:
+		return "excellent"
+	elif roll < 0.30:
+		return "good"
+	return "normal"
+
+func get_tool_quality_data(quality: String) -> Dictionary:
+	match quality:
+		"good":
+			return {"max_durability": 150, "speed_mult": 2.5, "wear": 8}
+		"excellent":
+			return {"max_durability": 200, "speed_mult": 3.0, "wear": 5}
+		_:
+			return {"max_durability": 100, "speed_mult": 2.0, "wear": 10}
+
+func get_tool_speed_mult(villager_id: String) -> float:
+	var q: String = get_tool_quality(villager_id)
+	if q == "":
+		return 1.0
+	return get_tool_quality_data(q).get("speed_mult", 2.0)
+
+func get_tool_wear(villager_id: String) -> int:
+	var q: String = get_tool_quality(villager_id)
+	if q == "":
+		return 10
+	return get_tool_quality_data(q).get("wear", 10)
+
+func damage_tool(villager_id: String, amount: int = -1) -> bool:
 	if not villagers.has(villager_id):
 		return false
 	var v: Dictionary = villagers[villager_id]
@@ -743,7 +776,10 @@ func damage_tool(villager_id: String, amount: int) -> bool:
 	var tool: Dictionary = eq.get("tool", {})
 	if tool.get("type", "") != "tool":
 		return false
-	tool["durability"] = max(int(tool.get("durability", 0)) - amount, 0)
+	var wear: int = amount
+	if wear < 0:
+		wear = get_tool_wear(villager_id)
+	tool["durability"] = max(int(tool.get("durability", 0)) - wear, 0)
 	print("Server: villager ", villager_id, " tool durability now ", tool["durability"], "/", tool.get("max_durability", 0))
 	if tool["durability"] <= 0:
 		_unequip_tool(villager_id)

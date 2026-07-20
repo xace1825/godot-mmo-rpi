@@ -378,12 +378,12 @@ func _process_workers():
 		else:
 			if station_is_indoor:
 				speed_mult = 0.6
-		# Equip tool for production jobs if available; tool doubles work speed
+		# Equip tool for production jobs if available; tool speed depends on quality
 		if v["state"] == "moving_to_work":
 			GameState.equip_tool_from_stockpile(str(id))
 		elif v["state"] == "working":
 			if GameState.has_tool_equipped(str(id)):
-				speed_mult *= 2.0
+				speed_mult *= GameState.get_tool_speed_mult(str(id))
 
 		match v["state"]:
 			"moving_to_work":
@@ -406,9 +406,9 @@ func _process_workers():
 					v["progress"] = 0.0
 					v["carrying"] = {"resource": res, "amount": PRODUCTION_AMOUNT}
 					v["state"] = "hauling"
-					# Damage tool on completing a work cycle
+					# Damage tool on completing a work cycle (wear depends on quality)
 					if GameState.has_tool_equipped(str(id)):
-						var broke: bool = GameState.damage_tool(str(id), 10)
+						var broke: bool = GameState.damage_tool(str(id))
 						if broke:
 							print("Server: worker ", id, " tool broke while producing ", res)
 					print("Server: worker ", id, " produced ", res, " at ", workplace)
