@@ -368,7 +368,7 @@ func spawn_villager(pos: Vector2i, job: String = "idle") -> int:
 			"energy": 100.0,
 			"comfort": 80.0
 		},
-		"equipment": {"tool": ""}
+		"equipment": {"tool": {"type": "", "durability": 0, "max_durability": 0, "quality": "normal"}}
 	}
 	villagers[str(id)] = v
 	print("Server: spawned villager ", id, " at ", pos.x, ",", pos.y, " job ", job)
@@ -415,7 +415,8 @@ func spawn_builder_for_blueprint(pos: Vector2i) -> Dictionary:
 			"hunger": 80.0,
 			"energy": 80.0,
 			"comfort": 50.0
-		}
+		},
+		"equipment": {"tool": {"type": "", "durability": 0, "max_durability": 0, "quality": "normal"}}
 	}
 	villagers[str(id)] = v
 	print("Server: spawned builder ", id, " at ", start_pos.x, ",", start_pos.y, " for blueprint ", pos.x, ",", pos.y)
@@ -695,26 +696,32 @@ func _unequip_tool(villager_id: String) -> void:
 		return
 	var v: Dictionary = villagers[villager_id]
 	var eq: Dictionary = v.get("equipment", {})
-	if eq.get("tool", "") == "":
+	var tool: Dictionary = eq.get("tool", {})
+	if tool.get("type", "") == "":
 		return
 	var pos := Vector2i(int(round(v["pos"]["x"])), int(round(v["pos"]["y"])))
-	var stock_id: String = find_nearest_stockpile(pos)
-	if stock_id == "":
-		_drop_item_on_ground(pos, "tools", 1)
+	var durability: int = int(tool.get("durability", 0))
+	if durability > 0:
+		var stock_id: String = find_nearest_stockpile(pos)
+		if stock_id == "":
+			_drop_item_on_ground(pos, "tools", 1)
+		else:
+			stockpiles[stock_id]["resources"]["tools"] += 1
+			Network.broadcast_stockpile_update(stock_id, stockpiles[stock_id].duplicate())
+		print("Server: villager ", villager_id, " unequipped tool (durability ", durability, ")")
 	else:
-		stockpiles[stock_id]["resources"]["tools"] += 1
-		Network.broadcast_stockpile_update(stock_id, stockpiles[stock_id].duplicate())
-	eq["tool"] = ""
+		print("Server: villager ", villager_id, " tool broke and was discarded")
+	eq["tool"] = {"type": "", "durability": 0, "max_durability": 0, "quality": "normal"}
 	_recalc_total_resources()
 	Network.broadcast_resource_sync()
-	print("Server: villager ", villager_id, " unequipped tool")
 
 func equip_tool_from_stockpile(villager_id: String) -> bool:
 	if not villagers.has(villager_id):
 		return false
 	var v: Dictionary = villagers[villager_id]
 	var eq: Dictionary = v.get("equipment", {})
-	if eq.get("tool", "") == "tool":
+	var tool: Dictionary = eq.get("tool", {})
+	if tool.get("type", "") == "tool":
 		return true
 	var pos := Vector2i(int(round(v["pos"]["x"])), int(round(v["pos"]["y"])))
 	var stock_id: String = find_stockpile_with_resources(pos, {"tools": 1}, {"tools": 0})
@@ -724,9 +731,40 @@ func equip_tool_from_stockpile(villager_id: String) -> bool:
 	_recalc_total_resources()
 	Network.broadcast_stockpile_update(stock_id, stockpiles[stock_id].duplicate())
 	Network.broadcast_resource_sync()
-	eq["tool"] = "tool"
+	eq["tool"] = {"type": "tool", "durability": 100, "max_durability": 100, "quality": "normal"}
 	print("Server: villager ", villager_id, " equipped tool from ", stock_id)
 	return true
+
+func damage_tool(villager_id: String, amount: int) -> bool:
+	if not villagers.has(villager_id):
+		return false
+	var v: Dictionary = villagers[villager_id]
+	var eq: Dictionary = v.get("equipment", {})
+	var tool: Dictionary = eq.get("tool", {})
+	if tool.get("type", "") != "tool":
+		return false
+	tool["durability"] = max(int(tool.get("durability", 0)) - amount, 0)
+	print("Server: villager ", villager_id, " tool durability now ", tool["durability"], "/", tool.get("max_durability", 0))
+	if tool["durability"] <= 0:
+		_unequip_tool(villager_id)
+		return true
+	return false
+
+func has_tool_equipped(villager_id: String) -> bool:
+	if not villagers.has(villager_id):
+		return false
+	var eq: Dictionary = villagers[villager_id].get("equipment", {})
+	var tool: Dictionary = eq.get("tool", {})
+	return tool.get("type", "") == "tool" and int(tool.get("durability", 0)) > 0
+
+func get_tool_quality(villager_id: String) -> String:
+	if not villagers.has(villager_id):
+		return ""
+	var eq: Dictionary = villagers[villager_id].get("equipment", {})
+	var tool: Dictionary = eq.get("tool", {})
+	if tool.get("type", "") != "tool":
+		return ""
+	return tool.get("quality", "normal")
 
 func set_job_priority(job: String, enabled: bool) -> void:
 	if not job_priorities.has(job):

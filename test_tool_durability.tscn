@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://ctooldurability0001"]
+
+[ext_resource type="Script" path="res://test_tool_durability.gd" id="1_xxx"]
+
+[node name="TestToolDurability" type="Node"]
+script = ExtResource("1_xxx")

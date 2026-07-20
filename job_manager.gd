@@ -382,8 +382,7 @@ func _process_workers():
 		if v["state"] == "moving_to_work":
 			GameState.equip_tool_from_stockpile(str(id))
 		elif v["state"] == "working":
-			var eq = v.get("equipment", {}) as Dictionary
-			if eq.get("tool", "") == "tool":
+			if GameState.has_tool_equipped(str(id)):
 				speed_mult *= 2.0
 
 		match v["state"]:
@@ -407,6 +406,11 @@ func _process_workers():
 					v["progress"] = 0.0
 					v["carrying"] = {"resource": res, "amount": PRODUCTION_AMOUNT}
 					v["state"] = "hauling"
+					# Damage tool on completing a work cycle
+					if GameState.has_tool_equipped(str(id)):
+						var broke: bool = GameState.damage_tool(str(id), 10)
+						if broke:
+							print("Server: worker ", id, " tool broke while producing ", res)
 					print("Server: worker ", id, " produced ", res, " at ", workplace)
 			"hauling":
 				var carrying = v.get("carrying", {}) as Dictionary

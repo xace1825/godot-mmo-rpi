@@ -75,9 +75,17 @@ func show_villager(id: String, data: Dictionary):
 	var wp_str := "нет"
 	if workplace.has("x") and workplace.has("y"):
 		wp_str = "%d,%d" % [int(workplace["x"]), int(workplace["y"])]
-	content_label.text = "Профессия: %s\nСостояние: %s\nПозиция: %d,%d\nРабочее место: %s\nГолод: %d\nЭнергия: %d\nКомфорт: %d" % [
+	var eq: Dictionary = data.get("equipment", {})
+	var tool: Dictionary = eq.get("tool", {})
+	var tool_str := "нет"
+	if tool.get("type", "") == "tool":
+		var dur: int = int(tool.get("durability", 0))
+		var max_dur: int = int(tool.get("max_durability", 0))
+		tool_str = "инструмент %d/%d (%s)" % [dur, max_dur, tool.get("quality", "normal")]
+	content_label.text = "Профессия: %s\nСостояние: %s\nПозиция: %d,%d\nРабочее место: %s\nГолод: %d\nЭнергия: %d\nКомфорт: %d\nЭкипировка: %s" % [
 		job, state, int(pos.get("x", 0)), int(pos.get("y", 0)), wp_str,
-		int(needs.get("hunger", 100)), int(needs.get("energy", 100)), int(needs.get("comfort", 100))
+		int(needs.get("hunger", 100)), int(needs.get("energy", 100)), int(needs.get("comfort", 100)),
+		tool_str
 	]
 	
 	job_buttons_container.visible = true
