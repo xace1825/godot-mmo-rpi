@@ -495,7 +495,7 @@ func _update_needs():
 		var v = GameState.villagers[id] as Dictionary
 		var needs: Dictionary = v["needs"]
 		var state: String = v["state"]
-		if state == "eating" or state == "sleeping":
+		if state == "eating" or state == "sleeping" or state == "moving_to_table" or state == "eating_at_table":
 			continue
 		needs["hunger"] = max(needs["hunger"] - HUNGER_RATE, 0.0)
 		needs["energy"] = max(needs["energy"] - ENERGY_RATE, 0.0)
@@ -561,11 +561,39 @@ func _process_needs():
 			var stock = GameState.stockpiles[stock_id]
 			var stock_pos = Vector2i(int(stock["topleft"]["x"]), int(stock["topleft"]["y"]))
 			if current_tile == stock_pos:
-				if GameState.consume_food_for_villager(id):
-					v["state"] = "eating"
-					print("Server: villager ", id, " is eating at ", stock_id)
+				var consumed_type: String = GameState.consume_food_for_villager(id)
+				if consumed_type != "":
+					var table_pos := GameState.find_nearest_table(current_tile)
+					if table_pos.x >= 0 and GameState.occupy_table(id, table_pos):
+						v["target_table"] = {"x": table_pos.x, "y": table_pos.y}
+						v["state"] = "moving_to_table"
+						print("Server: villager ", id, " took food and is heading to table ", table_pos)
+					else:
+						v["state"] = "eating"
+						print("Server: villager ", id, " is eating at ", stock_id)
 			elif v["from_pos"] == v["to_pos"]:
 				v["to_pos"] = _step_toward_dict(current_tile, stock_pos)
+		elif state == "moving_to_table":
+			var target: Dictionary = v.get("target_table", {})
+			var table_pos := Vector2i(int(target.get("x", -1)), int(target.get("y", -1)))
+			if table_pos.x < 0:
+				v["state"] = "eating"
+			elif current_tile == table_pos:
+				v["state"] = "eating_at_table"
+				print("Server: villager ", id, " is eating at table ", table_pos)
+			elif v["from_pos"] == v["to_pos"]:
+				v["to_pos"] = _step_toward_dict(current_tile, table_pos)
+		elif state == "eating_at_table":
+			v["needs"]["hunger"] = min(v["needs"]["hunger"] + 25.0, 100.0)
+			v["needs"]["comfort"] = min(v["needs"]["comfort"] + 10.0, 100.0)
+			v["needs"]["energy"] = min(v["needs"]["energy"] + 5.0, 100.0)
+			if v["needs"]["hunger"] >= 80.0:
+				GameState.release_table(id)
+				v.erase("target_table")
+				v["state"] = "idle"
+				if v["job"] != "builder" and v["job"] != "idle":
+					v["state"] = "moving_to_work"
+				print("Server: villager ", id, " finished eating at table")
 		elif state == "eating":
 			v["needs"]["hunger"] = min(v["needs"]["hunger"] + 25.0, 100.0)
 			if v["needs"]["hunger"] >= 80.0:
@@ -612,7 +640,7 @@ func _process_needs():
 
 func _is_satisfying_needs(v: Dictionary) -> bool:
 	var state: String = v["state"]
-	return state == "seeking_food" or state == "eating" or state == "seeking_bed" or state == "sleeping"
+	return state == "seeking_food" or state == "eating" or state == "moving_to_table" or state == "eating_at_table" or state == "seeking_bed" or state == "sleeping"
 
 func _is_paid(cost: Dictionary, paid: Dictionary) -> bool:
 	for res: String in cost:

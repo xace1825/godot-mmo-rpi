@@ -32,7 +32,8 @@ enum BuildingType {
 	KITCHEN,
 	CARPENTER,
 	MASON,
-	SMITHY
+	SMITHY,
+	TABLE
 }
 
 const HEIGHT_DEEP: float = -0.85
@@ -141,7 +142,7 @@ static func is_walkable_building(building_type: int) -> bool:
 
 static func is_indoor_building(building_type: int) -> bool:
 	match building_type:
-		BuildingType.FLOOR, BuildingType.WALL, BuildingType.DOOR, BuildingType.BED, BuildingType.SAWMILL, BuildingType.KITCHEN, BuildingType.MINE, BuildingType.FARM, BuildingType.CARPENTER, BuildingType.MASON, BuildingType.SMITHY:
+		BuildingType.FLOOR, BuildingType.WALL, BuildingType.DOOR, BuildingType.BED, BuildingType.SAWMILL, BuildingType.KITCHEN, BuildingType.MINE, BuildingType.FARM, BuildingType.CARPENTER, BuildingType.MASON, BuildingType.SMITHY, BuildingType.TABLE:
 			return true
 		_:
 			return false
@@ -213,6 +214,8 @@ static func get_build_cost(building_type: int) -> Dictionary:
 			return {"wood": 0, "stone": 20, "food": 0}
 		BuildingType.SMITHY:
 			return {"wood": 25, "stone": 15, "food": 0}
+		BuildingType.TABLE:
+			return {"wood": 6, "stone": 0, "food": 0}
 		_:
 			return {"wood": 0, "stone": 0, "food": 0}
 
@@ -303,6 +306,8 @@ static func building_type_to_rect(type: int) -> Rect2:
 			return Rect2(96, 64, 32, 32)
 		BuildingType.SMITHY:
 			return Rect2(128, 64, 32, 32)
+		BuildingType.TABLE:
+			return Rect2(160, 64, 32, 32)
 		_:
 			return Rect2(0, 0, 32, 32)
 

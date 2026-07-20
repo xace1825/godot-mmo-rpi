@@ -24,6 +24,7 @@ var villagers: Dictionary = {}
 var next_villager_id: int = 1
 var time_of_day: float = 6.0
 var day_count: int = 1
+var table_occupants: Dictionary = {}
 var job_priorities: Dictionary = {
 	"builder": true,
 	"lumberjack": true,
@@ -644,9 +645,9 @@ func get_stockpile_at(pos: Vector2i) -> String:
 			return stock_id
 	return ""
 
-func consume_food_for_villager(villager_id: String) -> bool:
+func consume_food_for_villager(villager_id: String) -> String:
 	if not villagers.has(villager_id):
-		return false
+		return ""
 	var v: Dictionary = villagers[villager_id]
 	var pos := Vector2i(int(round(v["pos"]["x"])), int(round(v["pos"]["y"])))
 	var stock_id: String = find_stockpile_with_resources(pos, {"prepared_food": 1, "wood": 0, "stone": 0, "food": 0}, {"prepared_food": 0, "wood": 0, "stone": 0, "food": 0})
@@ -657,17 +658,14 @@ func consume_food_for_villager(villager_id: String) -> bool:
 	else:
 		stock_id = find_stockpile_with_resources(pos, {"food": 1, "wood": 0, "stone": 0, "prepared_food": 0}, {"food": 0, "wood": 0, "stone": 0, "prepared_food": 0})
 		if stock_id == "":
-			return false
+			return ""
 		stockpiles[stock_id]["resources"]["food"] -= 1
 		consumed_type = "food"
 	_recalc_total_resources()
 	Network.broadcast_stockpile_update(stock_id, stockpiles[stock_id].duplicate())
 	Network.broadcast_resource_sync()
-	var needs: Dictionary = v["needs"]
-	needs["hunger"] = min(needs["hunger"] + 30.0, 100.0)
-	needs["energy"] = min(needs["energy"] + 10.0, 100.0)
-	print("Server: villager ", villager_id, " ate ", consumed_type, " from ", stock_id, " hunger=", needs["hunger"])
-	return true
+	print("Server: villager ", villager_id, " took ", consumed_type, " from ", stock_id)
+	return consumed_type
 
 func set_villager_job(villager_id: String, job: String) -> bool:
 	if not villagers.has(villager_id):
@@ -679,6 +677,7 @@ func set_villager_job(villager_id: String, job: String) -> bool:
 	# Unequip tool when leaving a tool-using job
 	if v["job"] in ["lumberjack", "miner", "farmer", "cook", "carpenter", "mason", "toolsmith"]:
 		_unequip_tool(villager_id)
+	release_table(villager_id)
 	v["job"] = job
 	v["state"] = "idle"
 	v["target_blueprint"] = ""
@@ -771,6 +770,41 @@ func sleep_at_bed(villager_id: String, bed_pos: Vector2i) -> bool:
 	v["needs"]["comfort"] = min(v["needs"]["comfort"] + 5.0, 100.0)
 	print("Server: villager ", villager_id, " went to bed ", bed_pos)
 	return true
+
+func find_nearest_table(pos: Vector2i) -> Vector2i:
+	var best_pos := Vector2i(-1, -1)
+	var best_dist := 999999.0
+	for key: String in buildings:
+		if buildings[key] != PlanetGenerator.BuildingType.TABLE:
+			continue
+		var table_pos := _key_pos(key)
+		if table_occupants.get(key, "") != "":
+			continue
+		var dist := sqrt(pow(table_pos.x - pos.x, 2) + pow(table_pos.y - pos.y, 2))
+		if dist < best_dist:
+			best_dist = dist
+			best_pos = table_pos
+	return best_pos
+
+func occupy_table(villager_id: String, table_pos: Vector2i) -> bool:
+	var key: String = _pos_key(table_pos)
+	if not buildings.has(key) or buildings[key] != PlanetGenerator.BuildingType.TABLE:
+		return false
+	if table_occupants.get(key, "") != "":
+		return false
+	table_occupants[key] = villager_id
+	print("Server: villager ", villager_id, " occupied table ", table_pos)
+	return true
+
+func release_table(villager_id: String) -> void:
+	for key: String in table_occupants:
+		if table_occupants[key] == villager_id:
+			table_occupants.erase(key)
+			print("Server: villager ", villager_id, " released table ")
+			return
+
+func get_table_occupant(table_pos: Vector2i) -> String:
+	return table_occupants.get(_pos_key(table_pos), "")
 
 func get_world_data() -> Dictionary:
 	ensure_world_generated()

@@ -56,6 +56,7 @@ const CATEGORY_BUILDINGS := {
 		PlanetGenerator.BuildingType.DOOR,
 		PlanetGenerator.BuildingType.FLOOR,
 		PlanetGenerator.BuildingType.BED,
+		PlanetGenerator.BuildingType.TABLE,
 		-1  # Room mode placeholder
 	],
 	PlanetGenerator.BuildCategory.PRODUCTION: [
@@ -85,6 +86,7 @@ const TYPE_ICONS := {
 	PlanetGenerator.BuildingType.CARPENTER: "[Ст]",
 	PlanetGenerator.BuildingType.MASON: "[Ка]",
 	PlanetGenerator.BuildingType.SMITHY: "[Кз]",
+	PlanetGenerator.BuildingType.TABLE: "[Стол]",
 	-1: "[Км]"
 }
 
@@ -101,6 +103,7 @@ const RU_NAMES := {
 	PlanetGenerator.BuildingType.CARPENTER: "Столярная",
 	PlanetGenerator.BuildingType.MASON: "Каменотёсная",
 	PlanetGenerator.BuildingType.SMITHY: "Кузница",
+	PlanetGenerator.BuildingType.TABLE: "Стол",
 	-1: "Комната"
 }
 
@@ -117,6 +120,7 @@ const TYPE_COLORS := {
 	PlanetGenerator.BuildingType.CARPENTER: Color(0.75, 0.6, 0.35),
 	PlanetGenerator.BuildingType.MASON: Color(0.6, 0.55, 0.55),
 	PlanetGenerator.BuildingType.SMITHY: Color(0.5, 0.55, 0.65),
+	PlanetGenerator.BuildingType.TABLE: Color(0.6, 0.45, 0.25),
 	-1: Color(0.5, 0.7, 0.9)
 }
 
