@@ -177,7 +177,7 @@ func _open_category(category: int, button: Button):
 			sub.expand_icon = true
 			sub.icon_alignment = HORIZONTAL_ALIGNMENT_LEFT
 		sub.pressed.connect(_on_sub_button_pressed.bind(sub))
-		sub_container.add_child.call_deferred(sub)
+		sub_container.add_child(sub)
 	sub_panel.visible = true
 	_highlight_main_button(button)
 
@@ -197,7 +197,7 @@ func _open_job_priority_panel(button: Button):
 		sub.add_theme_color_override("font_color", Color.WHITE)
 		sub.add_theme_stylebox_override("normal", _make_stylebox(base, 0.9))
 		sub.pressed.connect(_on_priority_button_pressed.bind(sub))
-		sub_container.add_child.call_deferred(sub)
+		sub_container.add_child(sub)
 	sub_panel.visible = true
 	_highlight_main_button(button)
 

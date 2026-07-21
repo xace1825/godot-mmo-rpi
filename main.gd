@@ -386,7 +386,7 @@ func _on_building_placed(pos: Vector2i, type_id: int):
 			sprite.region_rect = PlanetGenerator.building_type_to_rect(type_id)
 			sprite.modulate = Color(1, 1, 1, 1)
 		b.scale = Vector2.ZERO
-		add_child.call_deferred(b)
+		add_child(b)
 		client_floors[pos] = b
 		print("Client placed floor at ", pos)
 		var tween = create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
@@ -409,7 +409,7 @@ func _on_building_placed(pos: Vector2i, type_id: int):
 	# If a floor exists here, render the building above it
 	if client_floors.has(pos):
 		b.z_index = 1
-	add_child.call_deferred(b)
+	add_child(b)
 	client_buildings[pos] = b
 	print("Client placed building at ", pos, " type ", type_id)
 	var tween = create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
@@ -427,7 +427,7 @@ func _on_blueprint_placed(pos: Vector2i, type_id: int):
 	b.scale = Vector2.ZERO
 	if client_floors.has(pos):
 		b.z_index = 1
-	add_child.call_deferred(b)
+	add_child(b)
 	client_blueprints[pos] = b
 	print("Client placed blueprint at ", pos, " type ", type_id)
 	var tween = create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
@@ -570,7 +570,7 @@ func _create_ground_item_node(pos: Vector2i, item: Dictionary) -> Node2D:
 	var node := ground_item_scene.instantiate()
 	node.position = Vector2(pos.x * TILE_SIZE + TILE_SIZE / 2, pos.y * TILE_SIZE + TILE_SIZE / 2)
 	node.setup(type, amount)
-	add_child.call_deferred(node)
+	add_child(node)
 	return node
 
 func _update_ground_item_node(node: Node2D, item: Dictionary):
@@ -617,7 +617,7 @@ func _on_stockpile_added(id: String, data: Dictionary):
 		marker.size = Vector2(TILE_SIZE - 2, TILE_SIZE - 2)
 		marker.color = Color(0.9, 0.8, 0.3, 0.25)
 		marker.z_index = 1
-		add_child.call_deferred(marker)
+		add_child(marker)
 		marker.mouse_filter = Control.MOUSE_FILTER_STOP
 		marker.gui_input.connect(_on_stockpile_marker_clicked.bind(id))
 		if not client_stockpiles.has(id):
@@ -631,7 +631,7 @@ func _on_stockpile_added(id: String, data: Dictionary):
 		bg.size = Vector2(80, 18)
 		bg.color = Color(0, 0, 0, 0.7)
 		bg.z_index = 9
-		add_child.call_deferred(bg)
+		add_child(bg)
 		client_stockpiles[id].append(bg)
 		
 		var label := Label.new()
@@ -646,7 +646,7 @@ func _on_stockpile_added(id: String, data: Dictionary):
 		label.add_theme_constant_override("shadow_offset_x", 1)
 		label.add_theme_constant_override("shadow_offset_y", 1)
 		label.z_index = 10
-		add_child.call_deferred(label)
+		add_child(label)
 		client_stockpile_labels[id] = label
 		_update_stockpile_labels()
 
@@ -666,7 +666,7 @@ func _on_villager_sync(villagers: Dictionary):
 		else:
 			var node = villager_scene.instantiate()
 			node.position = target
-			add_child.call_deferred(node)
+			add_child(node)
 			node.setup(job)
 			node.set_carrying(carrying.get("resource", ""), carrying.get("amount", 0))
 			client_villagers[id] = node
