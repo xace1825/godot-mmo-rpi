@@ -1,16 +1,21 @@
 extends Node2D
 
-@onready var icon: ColorRect = $Icon
+@onready var icon: Sprite2D = $Icon
 @onready var amount_label: Label = $Amount
 
-const COLORS := {
-	"wood": Color(0.55, 0.35, 0.2),
-	"stone": Color(0.55, 0.55, 0.6),
-	"food": Color(0.3, 0.65, 0.25)
+const RESOURCE_INDEX := {
+	"wood": 0,
+	"stone": 1,
+	"food": 2,
+	"prepared_food": 3,
+	"planks": 4,
+	"blocks": 5,
+	"tools": 6,
 }
 
 func setup(resource: String, amount: int):
-	icon.color = COLORS.get(resource, Color(0.9, 0.9, 0.9))
+	var idx: int = RESOURCE_INDEX.get(resource, 0)
+	icon.region_rect = Rect2(idx * 32, 0, 32, 32)
 	amount_label.text = str(amount)
 
 func set_amount(amount: int):

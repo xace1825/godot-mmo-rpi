@@ -100,13 +100,13 @@ func _setup_day_night_overlay():
 	_night_overlay.anchors_preset = Control.PRESET_FULL_RECT
 	_night_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_night_overlay.z_index = 100
-	get_tree().root.add_child(_night_overlay)
+	get_tree().root.call_deferred("add_child", _night_overlay)
 	
 	_time_label = Label.new()
 	_time_label.position = Vector2(10, 10)
 	_time_label.add_theme_font_size_override("font_size", 18)
-	get_tree().root.add_child(_time_label)
-	_update_time_label()
+	get_tree().root.call_deferred("add_child", _time_label)
+	call_deferred("_update_time_label")
 
 func _on_day_night_sync(time_of_day: float, day_count: int):
 	_current_time_of_day = time_of_day
@@ -386,7 +386,7 @@ func _on_building_placed(pos: Vector2i, type_id: int):
 			sprite.region_rect = PlanetGenerator.building_type_to_rect(type_id)
 			sprite.modulate = Color(1, 1, 1, 1)
 		b.scale = Vector2.ZERO
-		add_child(b)
+		add_child.call_deferred(b)
 		client_floors[pos] = b
 		print("Client placed floor at ", pos)
 		var tween = create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
@@ -409,7 +409,7 @@ func _on_building_placed(pos: Vector2i, type_id: int):
 	# If a floor exists here, render the building above it
 	if client_floors.has(pos):
 		b.z_index = 1
-	add_child(b)
+	add_child.call_deferred(b)
 	client_buildings[pos] = b
 	print("Client placed building at ", pos, " type ", type_id)
 	var tween = create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
@@ -427,7 +427,7 @@ func _on_blueprint_placed(pos: Vector2i, type_id: int):
 	b.scale = Vector2.ZERO
 	if client_floors.has(pos):
 		b.z_index = 1
-	add_child(b)
+	add_child.call_deferred(b)
 	client_blueprints[pos] = b
 	print("Client placed blueprint at ", pos, " type ", type_id)
 	var tween = create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
@@ -437,7 +437,11 @@ var camera_initialized: bool = false
 var camera_target_position: Vector2 = Vector2.ZERO
 
 func _on_full_sync(data: Dictionary):
-	print("Client received full sync with ", data["buildings"].size(), " buildings, ", data.get("floors", {}).size(), " floors, ", data.get("blueprints", {}).size(), " blueprints, ", data.get("stockpiles", {}).size(), " stockpiles")
+	var buildings: Dictionary = data.get("buildings", {})
+	var floors: Dictionary = data.get("floors", {})
+	var blueprints: Dictionary = data.get("blueprints", {})
+	var stockpiles: Dictionary = data.get("stockpiles", {})
+	print("Client received full sync with ", buildings.size(), " buildings, ", floors.size(), " floors, ", blueprints.size(), " blueprints, ", stockpiles.size(), " stockpiles")
 	var seed_value := data.get("seed", 12345) as int
 	world_data = PlanetGenerator.generate_world(seed_value)
 	chunk_manager = ChunkManager.new(tile_map, world_data)
@@ -445,20 +449,20 @@ func _on_full_sync(data: Dictionary):
 	_current_day_count = data.get("day_count", 1)
 	_update_time_label()
 	_update_night_overlay()
-	for pos_str in data.get("floors", {}):
+	for pos_str in floors:
 		var parts: PackedStringArray = pos_str.split(",")
 		var pos = Vector2i(int(parts[0]), int(parts[1]))
-		_on_building_placed(pos, data["floors"][pos_str])
-	for pos_str in data["buildings"]:
+		_on_building_placed(pos, floors[pos_str])
+	for pos_str in buildings:
 		var parts: PackedStringArray = pos_str.split(",")
 		var pos = Vector2i(int(parts[0]), int(parts[1]))
-		_on_building_placed(pos, data["buildings"][pos_str])
-	for pos_str in data.get("blueprints", {}):
+		_on_building_placed(pos, buildings[pos_str])
+	for pos_str in blueprints:
 		var parts: PackedStringArray = pos_str.split(",")
 		var pos = Vector2i(int(parts[0]), int(parts[1]))
-		_on_blueprint_placed(pos, data["blueprints"][pos_str]["type"])
-	for stock_id in data.get("stockpiles", {}):
-		_on_stockpile_added(stock_id, data["stockpiles"][stock_id])
+		_on_blueprint_placed(pos, blueprints[pos_str]["type"])
+	for stock_id in stockpiles:
+		_on_stockpile_added(stock_id, stockpiles[stock_id])
 	
 	# Initialize camera once, focused on the first stockpile or world center
 	if not camera_initialized and camera:
@@ -496,6 +500,11 @@ func _on_world_reset(data: Dictionary):
 	_current_day_count = data.get("day_count", 1)
 	_update_time_label()
 	_update_night_overlay()
+	if data.has("seed"):
+		var seed_value := data["seed"] as int
+		world_data = PlanetGenerator.generate_world(seed_value)
+		if chunk_manager:
+			chunk_manager = ChunkManager.new(tile_map, world_data)
 	# Clear local buildings
 	for pos in client_buildings:
 		if is_instance_valid(client_buildings[pos]):
@@ -528,8 +537,11 @@ func _on_world_reset(data: Dictionary):
 	client_villagers.clear()
 	# Reset resources display
 	client_resources = {"wood": 0, "food": 0, "stone": 0, "prepared_food": 0, "planks": 0, "blocks": 0}
-	# Re-apply sync
-	_on_full_sync(data)
+	# Re-apply sync only if it contains the expected world fields.
+	if data.has("buildings"):
+		_on_full_sync(data)
+	else:
+		push_warning("Client: world reset data missing buildings, skipping full sync re-apply")
 
 func _on_ground_items_sync(items: Dictionary):
 	# Remove items no longer present
@@ -558,7 +570,7 @@ func _create_ground_item_node(pos: Vector2i, item: Dictionary) -> Node2D:
 	var node := ground_item_scene.instantiate()
 	node.position = Vector2(pos.x * TILE_SIZE + TILE_SIZE / 2, pos.y * TILE_SIZE + TILE_SIZE / 2)
 	node.setup(type, amount)
-	add_child(node)
+	add_child.call_deferred(node)
 	return node
 
 func _update_ground_item_node(node: Node2D, item: Dictionary):
@@ -605,7 +617,7 @@ func _on_stockpile_added(id: String, data: Dictionary):
 		marker.size = Vector2(TILE_SIZE - 2, TILE_SIZE - 2)
 		marker.color = Color(0.9, 0.8, 0.3, 0.25)
 		marker.z_index = 1
-		add_child(marker)
+		add_child.call_deferred(marker)
 		marker.mouse_filter = Control.MOUSE_FILTER_STOP
 		marker.gui_input.connect(_on_stockpile_marker_clicked.bind(id))
 		if not client_stockpiles.has(id):
@@ -619,7 +631,7 @@ func _on_stockpile_added(id: String, data: Dictionary):
 		bg.size = Vector2(80, 18)
 		bg.color = Color(0, 0, 0, 0.7)
 		bg.z_index = 9
-		add_child(bg)
+		add_child.call_deferred(bg)
 		client_stockpiles[id].append(bg)
 		
 		var label := Label.new()
@@ -634,7 +646,7 @@ func _on_stockpile_added(id: String, data: Dictionary):
 		label.add_theme_constant_override("shadow_offset_x", 1)
 		label.add_theme_constant_override("shadow_offset_y", 1)
 		label.z_index = 10
-		add_child(label)
+		add_child.call_deferred(label)
 		client_stockpile_labels[id] = label
 		_update_stockpile_labels()
 
@@ -654,7 +666,7 @@ func _on_villager_sync(villagers: Dictionary):
 		else:
 			var node = villager_scene.instantiate()
 			node.position = target
-			add_child(node)
+			add_child.call_deferred(node)
 			node.setup(job)
 			node.set_carrying(carrying.get("resource", ""), carrying.get("amount", 0))
 			client_villagers[id] = node

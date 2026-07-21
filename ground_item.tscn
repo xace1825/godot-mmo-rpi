@@ -1,17 +1,16 @@
-[gd_scene load_steps=2 format=3 uid="uid://grounditem00000000000000000001"]
+[gd_scene load_steps=3 format=3 uid="uid://grounditem00000000000000000001"]
 
 [ext_resource type="Script" path="res://ground_item.gd" id="1_gitem"]
+[ext_resource type="Texture2D" uid="uid://dvegx32lsv06v" path="res://ground_items.png" id="2_grounditems"]
 
 [node name="GroundItem" type="Node2D"]
 z_index = 1
 script = ExtResource("1_gitem")
 
-[node name="Icon" type="ColorRect" parent="."]
-offset_left = -10.0
-offset_top = -10.0
-offset_right = 10.0
-offset_bottom = 10.0
-color = Color(0.55, 0.35, 0.2, 1)
+[node name="Icon" type="Sprite2D" parent="."]
+texture = ExtResource("2_grounditems")
+region_enabled = true
+region_rect = Rect2(0, 0, 32, 32)
 
 [node name="Amount" type="Label" parent="."]
 offset_left = -16.0

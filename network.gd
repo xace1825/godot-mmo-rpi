@@ -328,12 +328,14 @@ func sync_world_reset(data: Dictionary):
 
 func broadcast_stockpile_added(id: String, data: Dictionary):
 	if multiplayer.has_multiplayer_peer():
-		rpc("sync_stockpile", id, data.duplicate())
+		var safe_id: String = str(id)
+		rpc("sync_stockpile", safe_id, data.duplicate())
 		_broadcast_state()
 
 func broadcast_stockpile_update(id: String, data: Dictionary):
 	if multiplayer.has_multiplayer_peer():
-		rpc("sync_stockpile", id, data.duplicate())
+		var safe_id: String = str(id)
+		rpc("sync_stockpile", safe_id, data.duplicate())
 
 func broadcast_ground_items_sync():
 	if multiplayer.has_multiplayer_peer():
@@ -347,7 +349,13 @@ func broadcast_day_night_sync():
 func _on_peer_connected(id: int):
 	print("Peer connected: ", id)
 	if multiplayer.is_server():
-		_broadcast_state()
-		rpc_id(id, "sync_villagers", GameState.villagers.duplicate())
-		rpc_id(id, "sync_day_night", GameState.time_of_day, GameState.day_count)
-		rpc_id(id, "sync_job_priorities", GameState.job_priorities.duplicate())
+		# Defer initial state broadcast so the client has finished loading Network autoload.
+		call_deferred("_defer_broadcast_state_to_peer", id)
+
+func _defer_broadcast_state_to_peer(id: int):
+	if not multiplayer.has_multiplayer_peer():
+		return
+	_broadcast_state()
+	rpc_id(id, "sync_villagers", GameState.villagers.duplicate())
+	rpc_id(id, "sync_day_night", GameState.time_of_day, GameState.day_count)
+	rpc_id(id, "sync_job_priorities", GameState.job_priorities.duplicate())

@@ -15,17 +15,21 @@ modulate = Color(0, 0, 0, 0.35)
 position = Vector2(0, 10)
 scale = Vector2(0.8, 0.4)
 texture = ExtResource("1_sprite")
+region_enabled = true
+region_rect = Rect2(0, 0, 32, 32)
 
 [node name="Sprite" type="Sprite2D" parent="."]
 texture = ExtResource("1_sprite")
+region_enabled = true
+region_rect = Rect2(0, 0, 32, 32)
 
-[node name="Carrying" type="ColorRect" parent="."]
+[node name="Carrying" type="Sprite2D" parent="."]
 visible = false
-offset_left = 4.0
-offset_top = -14.0
-offset_right = 16.0
-offset_bottom = -2.0
-color = Color(0.55, 0.35, 0.2, 1)
+position = Vector2(0, -18)
+texture = ExtResource("1_sprite")
+region_enabled = true
+region_rect = Rect2(0, 0, 32, 32)
+scale = Vector2(0.5, 0.5)
 
 [node name="ClickArea" type="Area2D" parent="."]
 

@@ -7,7 +7,8 @@ extends CanvasLayer
 
 var target_type: String = ""  # "stockpile" or "villager"
 var target_id: String = ""
-var job_buttons_container: HBoxContainer
+var job_buttons_container: HBoxContainer = null
+var _job_buttons_ready: bool = false
 
 const JOB_NAMES := {
 	"idle": "Без дела",
@@ -25,7 +26,11 @@ const JOB_NAMES := {
 func _ready():
 	panel.visible = false
 	close_button.pressed.connect(_on_close)
-	
+
+func _ensure_job_buttons():
+	if _job_buttons_ready:
+		return
+	_job_buttons_ready = true
 	job_buttons_container = HBoxContainer.new()
 	job_buttons_container.visible = false
 	var vbox: VBoxContainer = $Panel/VBoxContainer
@@ -47,12 +52,15 @@ func _on_close():
 	panel.visible = false
 	target_type = ""
 	target_id = ""
-	job_buttons_container.visible = false
+	if job_buttons_container != null:
+		job_buttons_container.visible = false
 
 func show_stockpile(id: String, data: Dictionary):
+	_ensure_job_buttons()
 	target_type = "stockpile"
 	target_id = id
-	job_buttons_container.visible = false
+	if job_buttons_container != null:
+		job_buttons_container.visible = false
 	title_label.text = "Склад %s" % id
 	var res: Dictionary = data.get("resources", {"wood": 0, "stone": 0, "food": 0, "prepared_food": 0})
 	var size: Dictionary = data.get("size", {"x": 1, "y": 1})
@@ -64,6 +72,7 @@ func show_stockpile(id: String, data: Dictionary):
 	panel.visible = true
 
 func show_villager(id: String, data: Dictionary):
+	_ensure_job_buttons()
 	target_type = "villager"
 	target_id = id
 	title_label.text = data.get("name", "Житель %s" % id)
@@ -88,16 +97,17 @@ func show_villager(id: String, data: Dictionary):
 		tool_str
 	]
 	
-	job_buttons_container.visible = true
-	for i in range(job_buttons_container.get_child_count()):
-		var btn := job_buttons_container.get_child(i) as Button
-		if btn == null:
-			continue
-		var btn_job := _get_job_from_button_name(btn.text)
-		if btn_job == job:
-			btn.modulate = Color(0.6, 1.0, 0.6)
-		else:
-			btn.modulate = Color(1, 1, 1)
+	if job_buttons_container != null:
+		job_buttons_container.visible = true
+		for i in range(job_buttons_container.get_child_count()):
+			var btn := job_buttons_container.get_child(i) as Button
+			if btn == null:
+				continue
+			var btn_job := _get_job_from_button_name(btn.text)
+			if btn_job == job:
+				btn.modulate = Color(0.6, 1.0, 0.6)
+			else:
+				btn.modulate = Color(1, 1, 1)
 	
 	panel.visible = true
 

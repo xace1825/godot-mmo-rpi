@@ -2,7 +2,7 @@ extends Node2D
 
 @onready var sprite: Sprite2D = $Sprite
 @onready var shadow: Sprite2D = $Shadow
-@onready var carrying_rect: ColorRect = $Carrying
+@onready var carrying_sprite: Sprite2D = $Carrying
 @onready var click_area: Area2D = $ClickArea
 
 var previous_position: Vector2 = Vector2.ZERO
@@ -10,16 +10,29 @@ var target_position: Vector2 = Vector2.ZERO
 var move_progress: float = 0.0
 var move_speed: float = 2.0
 var hop_phase: float = 0.0
+var last_move_dir: String = "s"
 
-const CARRY_COLORS := {
-	"wood": Color(0.55, 0.35, 0.2),
-	"stone": Color(0.55, 0.55, 0.6),
-	"food": Color(0.3, 0.65, 0.25)
+const DIRECTION_FRAMES := {
+	"n": 0,
+	"s": 1,
+	"e": 2,
+	"w": 3,
+}
+
+const CARRY_FRAMES := {
+	"wood": 0,
+	"stone": 1,
+	"food": 2,
+	"prepared_food": 3,
+	"planks": 4,
+	"blocks": 5,
+	"tools": 6,
 }
 
 func _ready():
 	previous_position = position
 	target_position = position
+	_update_frame(false)
 
 func setup(job: String):
 	match job:
@@ -42,14 +55,26 @@ func setup(job: String):
 		_:
 			sprite.modulate = Color(0.8, 0.8, 0.8)
 
+func _get_dir(delta: Vector2) -> String:
+	if abs(delta.x) >= abs(delta.y):
+		return "e" if delta.x >= 0 else "w"
+	return "s" if delta.y >= 0 else "n"
+
+func _update_frame(is_walking: bool):
+	var row: int = 1 if is_walking else 0
+	var col: int = DIRECTION_FRAMES.get(last_move_dir, 1)
+	sprite.region_rect = Rect2(col * 32, row * 32, 32, 32)
+	shadow.region_rect = Rect2(col * 32, row * 32, 32, 32)
+
 func set_carrying(resource: String, amount: int):
-	if carrying_rect == null:
+	if carrying_sprite == null:
 		return
 	if resource == "" or amount <= 0:
-		carrying_rect.visible = false
+		carrying_sprite.visible = false
 	else:
-		carrying_rect.visible = true
-		carrying_rect.color = CARRY_COLORS.get(resource, Color(0.9, 0.9, 0.9))
+		carrying_sprite.visible = true
+		var idx: int = CARRY_FRAMES.get(resource, 0)
+		carrying_sprite.region_rect = Rect2(idx * 32, 0, 32, 32)
 
 func set_next_position(next_pos: Vector2):
 	if target_position.is_equal_approx(next_pos):
@@ -58,6 +83,8 @@ func set_next_position(next_pos: Vector2):
 	target_position = next_pos
 	move_progress = 0.0
 	hop_phase = 0.0
+	last_move_dir = _get_dir(target_position - previous_position)
+	_update_frame(true)
 
 func _process(delta):
 	if target_position != previous_position:
@@ -72,6 +99,7 @@ func _process(delta):
 			sprite.position.y = 0.0
 			if shadow:
 				shadow.scale = Vector2.ONE
+			_update_frame(false)
 	else:
 		sprite.position.y = lerp(sprite.position.y, 0.0, delta * 10.0)
 		if shadow:
