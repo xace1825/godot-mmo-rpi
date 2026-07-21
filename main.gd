@@ -21,7 +21,7 @@ var client_blueprints: Dictionary = {}
 var client_stockpiles: Dictionary = {}
 var client_villagers: Dictionary = {}
 var ground_item_scene = preload("res://ground_item.tscn")
-var client_resources: Dictionary = {"wood": 0, "food": 0, "stone": 0, "prepared_food": 0, "planks": 0, "blocks": 0}
+var client_resources: Dictionary = {"wood": 0, "food": 0, "stone": 0, "prepared_food": 0, "planks": 0, "blocks": 0, "tools": 0}
 var client_stockpile_labels: Dictionary = {}
 var client_stockpile_sprites: Dictionary = {}
 var client_villager_nodes: Dictionary = {}
@@ -31,6 +31,7 @@ var camera_frames: int = 0
 var camera_speed: float = 1200.0
 var zoom_speed: float = 0.1
 var world_data: Array = []
+var _last_world_seed: int = -1
 var chunk_manager: ChunkManager = null
 var reconnect_attempts: int = 0
 var target_server_ip: String = ""
@@ -443,8 +444,10 @@ func _on_full_sync(data: Dictionary):
 	var stockpiles: Dictionary = data.get("stockpiles", {})
 	print("Client received full sync with ", buildings.size(), " buildings, ", floors.size(), " floors, ", blueprints.size(), " blueprints, ", stockpiles.size(), " stockpiles")
 	var seed_value := data.get("seed", 12345) as int
-	world_data = PlanetGenerator.generate_world(seed_value)
-	chunk_manager = ChunkManager.new(tile_map, world_data)
+	if world_data.is_empty() or _last_world_seed != seed_value:
+		world_data = PlanetGenerator.generate_world(seed_value)
+		chunk_manager = ChunkManager.new(tile_map, world_data)
+		_last_world_seed = seed_value
 	_current_time_of_day = data.get("time_of_day", 6.0)
 	_current_day_count = data.get("day_count", 1)
 	_update_time_label()
@@ -536,7 +539,7 @@ func _on_world_reset(data: Dictionary):
 			client_villagers[id].queue_free()
 	client_villagers.clear()
 	# Reset resources display
-	client_resources = {"wood": 0, "food": 0, "stone": 0, "prepared_food": 0, "planks": 0, "blocks": 0}
+	client_resources = {"wood": 0, "food": 0, "stone": 0, "prepared_food": 0, "planks": 0, "blocks": 0, "tools": 0}
 	# Re-apply sync only if it contains the expected world fields.
 	if data.has("buildings"):
 		_on_full_sync(data)

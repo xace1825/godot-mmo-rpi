@@ -369,6 +369,9 @@ func _process_workers():
 			continue
 		var station_type: int = GameState.buildings.get(_pos_key(workplace), -1)
 		if station_type == -1:
+			v["workplace"] = v["pos"].duplicate()
+			v["state"] = "idle"
+			v["job"] = "idle"
 			continue
 		var speed_mult := 1.0
 		var station_is_indoor := GameState.is_indoor_station(workplace)
@@ -424,6 +427,7 @@ func _process_workers():
 				if target_stock_id == "":
 					v["to_pos"] = v["pos"].duplicate()
 					v["from_pos"] = v["pos"].duplicate()
+					GameState.drop_item_on_ground(current_tile, resource, amount)
 					v["state"] = "idle"
 					v["carrying"] = {"resource": "", "amount": 0}
 					continue
@@ -481,6 +485,7 @@ func _process_hauler(id: String, v: Dictionary):
 				return
 			var target_stock_id := GameState.find_nearest_stockpile(current_tile)
 			if target_stock_id == "":
+				GameState.drop_item_on_ground(current_tile, resource, amount)
 				v["state"] = "idle"
 				v["carrying"] = {"resource": "", "amount": 0}
 				return
@@ -538,17 +543,19 @@ func _update_needs():
 			v["from_pos"] = v["pos"].duplicate()
 			print("Server: villager ", id, " is tired, seeking bed")
 		# Resume normal work when needs are satisfied
-		if state == "seeking_food" and needs["hunger"] >= 80.0:
-			v["state"] = "idle"
-			if v["job"] != "builder" and v["job"] != "idle" and v["job"] != "hauler":
-				v["state"] = "moving_to_work"
-		if state == "seeking_bed" and needs["energy"] >= 80.0:
-			v["state"] = "idle"
-			if v["job"] != "builder" and v["job"] != "idle" and v["job"] != "hauler":
-				v["state"] = "moving_to_work"
-				# If we were sleeping on the ground and have a blueprint, resume building
-				if v["job"] == "builder":
-					v["state"] = "idle"
+		# Guard: only run satisfaction checks if state wasn't already changed above
+		if v["state"] == state:  # state wasn't changed by the if/elif above
+			if state == "seeking_food" and needs["hunger"] >= 80.0:
+				v["state"] = "idle"
+				if v["job"] != "builder" and v["job"] != "idle" and v["job"] != "hauler":
+					v["state"] = "moving_to_work"
+			if state == "seeking_bed" and needs["energy"] >= 80.0:
+				v["state"] = "idle"
+				if v["job"] != "builder" and v["job"] != "idle" and v["job"] != "hauler":
+					v["state"] = "moving_to_work"
+					# If we were sleeping on the ground and have a blueprint, resume building
+					if v["job"] == "builder":
+						v["state"] = "idle"
 
 func _process_needs():
 	for id in GameState.villagers:
@@ -595,14 +602,14 @@ func _process_needs():
 				GameState.release_table(id)
 				v.erase("target_table")
 				v["state"] = "idle"
-				if v["job"] != "builder" and v["job"] != "idle":
+				if v["job"] != "builder" and v["job"] != "idle" and v["job"] != "hauler":
 					v["state"] = "moving_to_work"
 				print("Server: villager ", id, " finished eating at table")
 		elif state == "eating":
 			v["needs"]["hunger"] = min(v["needs"]["hunger"] + 25.0, 100.0)
 			if v["needs"]["hunger"] >= 80.0:
 				v["state"] = "idle"
-				if v["job"] != "builder" and v["job"] != "idle":
+				if v["job"] != "builder" and v["job"] != "idle" and v["job"] != "hauler":
 					v["state"] = "moving_to_work"
 				print("Server: villager ", id, " finished eating")
 		elif state == "sleeping":
@@ -616,7 +623,7 @@ func _process_needs():
 			v["needs"]["comfort"] = min(v["needs"]["comfort"] + comfort_boost, 100.0)
 			if v["needs"]["energy"] >= 90.0:
 				v["state"] = "idle"
-				if v["job"] != "builder" and v["job"] != "idle":
+				if v["job"] != "builder" and v["job"] != "idle" and v["job"] != "hauler":
 					v["state"] = "moving_to_work"
 				print("Server: villager ", id, " woke up")
 		elif state == "seeking_bed":
@@ -626,7 +633,7 @@ func _process_needs():
 				v["needs"]["comfort"] = max(v["needs"]["comfort"] - 2.0, 0.0)
 				if v["needs"]["energy"] >= 90.0:
 					v["state"] = "idle"
-					if v["job"] != "builder" and v["job"] != "idle":
+					if v["job"] != "builder" and v["job"] != "idle" and v["job"] != "hauler":
 						v["state"] = "moving_to_work"
 						print("Server: villager ", id, " slept on the ground and recovered")
 				continue
@@ -638,7 +645,7 @@ func _process_needs():
 				v["to_pos"] = _step_toward_avoid_back(current_tile, bed_pos, Vector2i(int(v["from_pos"]["x"]), int(v["from_pos"]["y"])))
 			if v["needs"]["energy"] >= 90.0:
 				v["state"] = "idle"
-				if v["job"] != "builder" and v["job"] != "idle":
+				if v["job"] != "builder" and v["job"] != "idle" and v["job"] != "hauler":
 					v["state"] = "moving_to_work"
 				print("Server: villager ", id, " woke up")
 

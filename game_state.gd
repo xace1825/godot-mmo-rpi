@@ -80,6 +80,20 @@ func is_indoor_station(pos: Vector2i) -> bool:
 	var key: String = _pos_key(pos)
 	return room_station_status.get(key, false)
 
+var _room_recalc_timer: float = 0.0
+var _room_recalc_pending: bool = false
+
+func _physics_process(delta: float):
+	if _room_recalc_pending:
+		_room_recalc_timer += delta
+		if _room_recalc_timer >= 2.0:
+			_room_recalc_timer = 0.0
+			_room_recalc_pending = false
+			recalculate_rooms()
+
+func request_room_recalc():
+	_room_recalc_pending = true
+
 func recalculate_rooms():
 	rooms.clear()
 	room_station_status.clear()
@@ -465,7 +479,7 @@ func complete_blueprint(pos: Vector2i) -> bool:
 		# spawn_villagers_for_station(pos, completed_type)
 		pass
 	print("Server: blueprint completed at ", key, " type ", completed_type)
-	recalculate_rooms()
+	request_room_recalc()
 	Network.broadcast_building_completed(pos, completed_type)
 	return true
 
@@ -602,8 +616,17 @@ func _drop_item_on_ground(pos: Vector2i, resource: String, amount: int):
 		if existing.get("resource", "") == resource:
 			existing["amount"] += amount
 		else:
-			# Mixed resources: keep newest on top visually, but merge different types
-			existing["amount"] += amount
+			# Different resource already here — find nearby empty tile
+			var placed := false
+			for d in [Vector2i(1,0), Vector2i(-1,0), Vector2i(0,1), Vector2i(0,-1), Vector2i(1,1), Vector2i(-1,1), Vector2i(1,-1), Vector2i(-1,-1)]:
+				var nkey := _pos_key(pos + d)
+				if not ground_items.has(nkey) and pos.x + d.x >= 0 and pos.x + d.x < PlanetGenerator.WORLD_SIZE and pos.y + d.y >= 0 and pos.y + d.y < PlanetGenerator.WORLD_SIZE:
+					ground_items[nkey] = {"resource": resource, "amount": amount}
+					placed = true
+					break
+			if not placed:
+				# Overwrite with new resource (old is lost — rare edge case)
+				ground_items[key] = {"resource": resource, "amount": amount}
 	else:
 		ground_items[key] = {"resource": resource, "amount": amount}
 	Network.broadcast_ground_items_sync()
@@ -682,7 +705,7 @@ func set_villager_job(villager_id: String, job: String) -> bool:
 	v["job"] = job
 	v["state"] = "idle"
 	v["target_blueprint"] = ""
-	v["workplace"] = {}
+	v["workplace"] = v["pos"].duplicate()
 	v["progress"] = 0.0
 	v["carrying"] = {"resource": "", "amount": 0}
 	v["to_pos"] = v["pos"].duplicate()
@@ -888,7 +911,8 @@ func get_world_data() -> Dictionary:
 		stock_copy[sid] = {
 			"topleft": s["topleft"].duplicate(),
 			"size": s["size"].duplicate(),
-			"resources": s["resources"].duplicate()
+			"resources": s["resources"].duplicate(),
+			"zone": s.get("zone", []).duplicate()
 		}
 	return {
 		"seed": world_seed,

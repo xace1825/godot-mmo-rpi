@@ -11,6 +11,7 @@ var move_progress: float = 0.0
 var move_speed: float = 2.0
 var hop_phase: float = 0.0
 var last_move_dir: String = "s"
+var _shadow_base_scale: Vector2 = Vector2(0.8, 0.4)
 
 const DIRECTION_FRAMES := {
 	"n": 0,
@@ -93,14 +94,14 @@ func _process(delta):
 		hop_phase += delta * 8.0
 		sprite.position.y = -abs(sin(hop_phase)) * 2.0
 		if shadow:
-			shadow.scale = Vector2(1.0 - abs(sin(hop_phase)) * 0.2, 1.0 - abs(sin(hop_phase)) * 0.2)
+			shadow.scale = _shadow_base_scale * (1.0 - abs(sin(hop_phase)) * 0.2)
 		if move_progress >= 1.0:
 			previous_position = target_position
 			sprite.position.y = 0.0
 			if shadow:
-				shadow.scale = Vector2.ONE
+				shadow.scale = _shadow_base_scale
 			_update_frame(false)
 	else:
-		sprite.position.y = lerp(sprite.position.y, 0.0, delta * 10.0)
+		sprite.position.y = lerp(sprite.position.y, 0.0, clampf(delta * 10.0, 0.0, 1.0))
 		if shadow:
-			shadow.scale = shadow.scale.lerp(Vector2.ONE, delta * 10.0)
+			shadow.scale = shadow.scale.lerp(_shadow_base_scale, clampf(delta * 10.0, 0.0, 1.0))

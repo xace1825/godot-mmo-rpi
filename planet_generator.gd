@@ -135,14 +135,14 @@ static func is_walkable_tile(tile_type: int) -> bool:
 
 static func is_walkable_building(building_type: int) -> bool:
 	match building_type:
-		BuildingType.WALL, BuildingType.SAWMILL, BuildingType.KITCHEN, BuildingType.MINE, BuildingType.CARPENTER, BuildingType.MASON, BuildingType.SMITHY:
+		BuildingType.WALL:
 			return false
 		_:
 			return true
 
 static func is_indoor_building(building_type: int) -> bool:
 	match building_type:
-		BuildingType.FLOOR, BuildingType.WALL, BuildingType.DOOR, BuildingType.BED, BuildingType.SAWMILL, BuildingType.KITCHEN, BuildingType.MINE, BuildingType.FARM, BuildingType.CARPENTER, BuildingType.MASON, BuildingType.SMITHY, BuildingType.TABLE:
+		BuildingType.FLOOR, BuildingType.WALL, BuildingType.DOOR, BuildingType.BED, BuildingType.SAWMILL, BuildingType.KITCHEN, BuildingType.MINE, BuildingType.CARPENTER, BuildingType.MASON, BuildingType.SMITHY, BuildingType.TABLE:
 			return true
 		_:
 			return false
