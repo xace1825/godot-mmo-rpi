@@ -68,7 +68,7 @@ func _tick():
 	_process_workers()
 	Network.broadcast_resource_sync()
 	_tick_count += 1
-	if _tick_count % 30 == 0:
+	if _tick_count % 60 == 0:
 		GameState.save_world()
 
 func _update_villager_movement(delta: float):
@@ -653,57 +653,33 @@ func _is_paid(cost: Dictionary, paid: Dictionary) -> bool:
 	return true
 
 func _step_toward_dict(from_pos: Vector2i, to_pos: Vector2i) -> Dictionary:
-	var dirs: Array[Vector2i] = [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]
-	var start := from_pos
-	var goal := to_pos
-	if start == goal:
-		return {"x": start.x, "y": start.y}
-
-	var open_set: Array[Vector2i] = [start]
-	var came_from: Dictionary = {}
-	var g_score: Dictionary = {}
-	g_score[_key(start)] = 0
-	var f_score: Dictionary = {}
-	f_score[_key(start)] = _manhattan(start, goal)
-	var visited: int = 0
-	var max_visited: int = 5000
-
-	while open_set.size() > 0 and visited < max_visited:
-		visited += 1
-		var current: Vector2i = open_set[0]
-		var best_idx: int = 0
-		for i in range(open_set.size()):
-			var k: String = _key(open_set[i])
-			if f_score.get(k, 999999) < f_score.get(_key(current), 999999):
-				current = open_set[i]
-				best_idx = i
-		open_set.remove_at(best_idx)
-		if current == goal:
-			var path: Array[Vector2i] = [current]
-			while came_from.has(_key(current)):
-				current = came_from[_key(current)]
-				path.append(current)
-			path.reverse()
-			if path.size() >= 2:
-				var next_step: Vector2i = path[1]
-				return {"x": next_step.x, "y": next_step.y}
-			return {"x": start.x, "y": start.y}
-
-		for d in dirs:
-			var neighbor: Vector2i = current + d
-			if neighbor.x < 0 or neighbor.x >= PlanetGenerator.WORLD_SIZE or neighbor.y < 0 or neighbor.y >= PlanetGenerator.WORLD_SIZE:
-				continue
-			if not GameState.is_walkable(neighbor):
-				continue
-			var g: int = g_score.get(_key(current), 999999) + 1
-			var ng: int = g_score.get(_key(neighbor), 999999)
-			if g < ng:
-				came_from[_key(neighbor)] = current
-				g_score[_key(neighbor)] = g
-				f_score[_key(neighbor)] = g + _manhattan(neighbor, goal)
-				if not open_set.has(neighbor):
-					open_set.append(neighbor)
-
+	# Greedy step: move along the axis with the greatest distance first
+	if from_pos == to_pos:
+		return {"x": from_pos.x, "y": from_pos.y}
+	# Try X axis first
+	var dx: int = to_pos.x - from_pos.x
+	var dy: int = to_pos.y - from_pos.y
+	var candidates: Array[Vector2i] = []
+	if abs(dx) >= abs(dy):
+		if dx != 0:
+			candidates.append(Vector2i(from_pos.x + sign(dx), from_pos.y))
+		if dy != 0:
+			candidates.append(Vector2i(from_pos.x, from_pos.y + sign(dy)))
+	else:
+		if dy != 0:
+			candidates.append(Vector2i(from_pos.x, from_pos.y + sign(dy)))
+		if dx != 0:
+			candidates.append(Vector2i(from_pos.x + sign(dx), from_pos.y))
+	# Also add fallback directions
+	candidates.append(Vector2i(from_pos.x + 1, from_pos.y))
+	candidates.append(Vector2i(from_pos.x - 1, from_pos.y))
+	candidates.append(Vector2i(from_pos.x, from_pos.y + 1))
+	candidates.append(Vector2i(from_pos.x, from_pos.y - 1))
+	for c in candidates:
+		if c.x < 0 or c.x >= PlanetGenerator.WORLD_SIZE or c.y < 0 or c.y >= PlanetGenerator.WORLD_SIZE:
+			continue
+		if GameState.is_walkable(c):
+			return {"x": c.x, "y": c.y}
 	return {"x": from_pos.x, "y": from_pos.y}
 
 func _key(p: Vector2i) -> String:
