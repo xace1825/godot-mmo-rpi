@@ -274,10 +274,10 @@ func _process_builders():
 			"idle":
 				if already_paid:
 					v["state"] = "moving_to_blueprint"
-					v["to_pos"] = _step_toward_dict(current_tile, pos)
+					v["to_pos"] = _step_toward_avoid_back(current_tile, pos, Vector2i(int(v["from_pos"]["x"]), int(v["from_pos"]["y"])))
 				else:
 					v["state"] = "moving_to_stockpile"
-					v["to_pos"] = _step_toward_dict(current_tile, pos)
+					v["to_pos"] = _step_toward_avoid_back(current_tile, pos, Vector2i(int(v["from_pos"]["x"]), int(v["from_pos"]["y"])))
 			"moving_to_blueprint":
 				if current_tile == pos:
 					if already_paid:
@@ -286,7 +286,7 @@ func _process_builders():
 					else:
 						v["state"] = "moving_to_stockpile"
 				elif v["from_pos"] == v["to_pos"]:
-					v["to_pos"] = _step_toward_dict(current_tile, pos)
+					v["to_pos"] = _step_toward_avoid_back(current_tile, pos, Vector2i(int(v["from_pos"]["x"]), int(v["from_pos"]["y"])))
 			"building":
 				bp["progress"] += BUILD_UNITS_PER_TICK
 				if bp["progress"] >= 1.0:
@@ -321,7 +321,7 @@ func _process_builders():
 			"moving_to_stockpile":
 				if already_paid:
 					v["state"] = "returning_to_blueprint"
-					v["to_pos"] = _step_toward_dict(current_tile, pos)
+					v["to_pos"] = _step_toward_avoid_back(current_tile, pos, Vector2i(int(v["from_pos"]["x"]), int(v["from_pos"]["y"])))
 					continue
 				var stock_id = GameState.find_stockpile_with_resources(pos, cost, paid)
 				if stock_id == "":
@@ -332,19 +332,19 @@ func _process_builders():
 				if current_tile == stock_pos:
 					if GameState.pay_blueprint_cost(pos):
 						v["state"] = "returning_to_blueprint"
-						v["to_pos"] = _step_toward_dict(current_tile, pos)
+						v["to_pos"] = _step_toward_avoid_back(current_tile, pos, Vector2i(int(v["from_pos"]["x"]), int(v["from_pos"]["y"])))
 						print("Server: builder ", id, " fetched resources from ", stock_id)
 					else:
 						v["state"] = "waiting_resources"
 						print("Server: builder ", id, " waiting for resources at ", stock_id)
 				elif v["from_pos"] == v["to_pos"]:
-					v["to_pos"] = _step_toward_dict(current_tile, stock_pos)
+					v["to_pos"] = _step_toward_avoid_back(current_tile, stock_pos, Vector2i(int(v["from_pos"]["x"]), int(v["from_pos"]["y"])))
 			"returning_to_blueprint":
 				if current_tile == pos:
 					v["state"] = "building"
 					print("Server: builder ", id, " returned to blueprint at ", pos)
 				elif v["from_pos"] == v["to_pos"]:
-					v["to_pos"] = _step_toward_dict(current_tile, pos)
+					v["to_pos"] = _step_toward_avoid_back(current_tile, pos, Vector2i(int(v["from_pos"]["x"]), int(v["from_pos"]["y"])))
 			"waiting_resources":
 				v["state"] = "moving_to_stockpile"
 
@@ -392,7 +392,7 @@ func _process_workers():
 					v["progress"] = 0.0
 					print("Server: worker ", id, " reached workplace ", workplace)
 				elif v["from_pos"] == v["to_pos"]:
-					v["to_pos"] = _step_toward_dict(current_tile, workplace)
+					v["to_pos"] = _step_toward_avoid_back(current_tile, workplace, Vector2i(int(v["from_pos"]["x"]), int(v["from_pos"]["y"])))
 			"working":
 				var consumes: String = PlanetGenerator.get_consumes_for_job(job)
 				if consumes != "":
@@ -435,7 +435,7 @@ func _process_workers():
 					v["state"] = "idle"
 					print("Server: worker ", id, " deposited ", amount, " ", resource, " to ", target_stock_id)
 				elif v["from_pos"] == v["to_pos"]:
-					v["to_pos"] = _step_toward_dict(current_tile, target_pos)
+					v["to_pos"] = _step_toward_avoid_back(current_tile, target_pos, Vector2i(int(v["from_pos"]["x"]), int(v["from_pos"]["y"])))
 
 func _process_hauler(id: String, v: Dictionary):
 	var current_tile := Vector2i(int(round(v["pos"]["x"])), int(round(v["pos"]["y"])))
@@ -469,7 +469,7 @@ func _process_hauler(id: String, v: Dictionary):
 					v["state"] = "idle"
 					return
 			elif v["from_pos"] == v["to_pos"]:
-				v["to_pos"] = _step_toward_dict(current_tile, target_pos)
+				v["to_pos"] = _step_toward_avoid_back(current_tile, target_pos, Vector2i(int(v["from_pos"]["x"]), int(v["from_pos"]["y"])))
 				v["state"] = "moving_to_ground"
 		"hauling_to_stockpile":
 			var carrying = v.get("carrying", {}) as Dictionary
@@ -492,7 +492,7 @@ func _process_hauler(id: String, v: Dictionary):
 				v["state"] = "idle"
 				print("Server: hauler ", id, " deposited ", amount, " ", resource, " to ", target_stock_id)
 			elif v["from_pos"] == v["to_pos"]:
-				v["to_pos"] = _step_toward_dict(current_tile, target_pos)
+				v["to_pos"] = _step_toward_avoid_back(current_tile, target_pos, Vector2i(int(v["from_pos"]["x"]), int(v["from_pos"]["y"])))
 
 func _update_needs():
 	for id in GameState.villagers:
@@ -576,7 +576,7 @@ func _process_needs():
 						v["state"] = "eating"
 						print("Server: villager ", id, " is eating at ", stock_id)
 			elif v["from_pos"] == v["to_pos"]:
-				v["to_pos"] = _step_toward_dict(current_tile, stock_pos)
+				v["to_pos"] = _step_toward_avoid_back(current_tile, stock_pos, Vector2i(int(v["from_pos"]["x"]), int(v["from_pos"]["y"])))
 		elif state == "moving_to_table":
 			var target: Dictionary = v.get("target_table", {})
 			var table_pos := Vector2i(int(target.get("x", -1)), int(target.get("y", -1)))
@@ -586,7 +586,7 @@ func _process_needs():
 				v["state"] = "eating_at_table"
 				print("Server: villager ", id, " is eating at table ", table_pos)
 			elif v["from_pos"] == v["to_pos"]:
-				v["to_pos"] = _step_toward_dict(current_tile, table_pos)
+				v["to_pos"] = _step_toward_avoid_back(current_tile, table_pos, Vector2i(int(v["from_pos"]["x"]), int(v["from_pos"]["y"])))
 		elif state == "eating_at_table":
 			v["needs"]["hunger"] = min(v["needs"]["hunger"] + 25.0, 100.0)
 			v["needs"]["comfort"] = min(v["needs"]["comfort"] + 10.0, 100.0)
@@ -635,7 +635,7 @@ func _process_needs():
 				v["state"] = "sleeping"
 				print("Server: villager ", id, " is sleeping at bed ", bed_pos)
 			elif v["from_pos"] == v["to_pos"]:
-				v["to_pos"] = _step_toward_dict(current_tile, bed_pos)
+				v["to_pos"] = _step_toward_avoid_back(current_tile, bed_pos, Vector2i(int(v["from_pos"]["x"]), int(v["from_pos"]["y"])))
 			if v["needs"]["energy"] >= 90.0:
 				v["state"] = "idle"
 				if v["job"] != "builder" and v["job"] != "idle":
@@ -653,10 +653,9 @@ func _is_paid(cost: Dictionary, paid: Dictionary) -> bool:
 	return true
 
 func _step_toward_dict(from_pos: Vector2i, to_pos: Vector2i) -> Dictionary:
-	# Greedy step: move along the axis with the greatest distance first
+	# Greedy step with anti-oscillation: avoid going back the way we came
 	if from_pos == to_pos:
 		return {"x": from_pos.x, "y": from_pos.y}
-	# Try X axis first
 	var dx: int = to_pos.x - from_pos.x
 	var dy: int = to_pos.y - from_pos.y
 	var candidates: Array[Vector2i] = []
@@ -670,11 +669,46 @@ func _step_toward_dict(from_pos: Vector2i, to_pos: Vector2i) -> Dictionary:
 			candidates.append(Vector2i(from_pos.x, from_pos.y + sign(dy)))
 		if dx != 0:
 			candidates.append(Vector2i(from_pos.x + sign(dx), from_pos.y))
-	# Also add fallback directions
-	candidates.append(Vector2i(from_pos.x + 1, from_pos.y))
-	candidates.append(Vector2i(from_pos.x - 1, from_pos.y))
-	candidates.append(Vector2i(from_pos.x, from_pos.y + 1))
-	candidates.append(Vector2i(from_pos.x, from_pos.y - 1))
+	# Add all 4 directions as fallback
+	for d in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+		if not candidates.has(d):
+			candidates.append(d)
+	# Try all candidates, preferring ones toward target
+	for c in candidates:
+		if c.x < 0 or c.x >= PlanetGenerator.WORLD_SIZE or c.y < 0 or c.y >= PlanetGenerator.WORLD_SIZE:
+			continue
+		if GameState.is_walkable(c):
+			return {"x": c.x, "y": c.y}
+	return {"x": from_pos.x, "y": from_pos.y}
+
+func _step_toward_avoid_back(from_pos: Vector2i, to_pos: Vector2i, avoid_pos: Vector2i) -> Dictionary:
+	# Greedy step but avoid going back to avoid_pos (prevents oscillation)
+	if from_pos == to_pos:
+		return {"x": from_pos.x, "y": from_pos.y}
+	var dx: int = to_pos.x - from_pos.x
+	var dy: int = to_pos.y - from_pos.y
+	var candidates: Array[Vector2i] = []
+	if abs(dx) >= abs(dy):
+		if dx != 0:
+			candidates.append(Vector2i(from_pos.x + sign(dx), from_pos.y))
+		if dy != 0:
+			candidates.append(Vector2i(from_pos.x, from_pos.y + sign(dy)))
+	else:
+		if dy != 0:
+			candidates.append(Vector2i(from_pos.x, from_pos.y + sign(dy)))
+		if dx != 0:
+			candidates.append(Vector2i(from_pos.x + sign(dx), from_pos.y))
+	for d in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+		if not candidates.has(d):
+			candidates.append(d)
+	for c in candidates:
+		if c.x < 0 or c.x >= PlanetGenerator.WORLD_SIZE or c.y < 0 or c.y >= PlanetGenerator.WORLD_SIZE:
+			continue
+		if c == avoid_pos:
+			continue
+		if GameState.is_walkable(c):
+			return {"x": c.x, "y": c.y}
+	# If all else fails, allow going back
 	for c in candidates:
 		if c.x < 0 or c.x >= PlanetGenerator.WORLD_SIZE or c.y < 0 or c.y >= PlanetGenerator.WORLD_SIZE:
 			continue
