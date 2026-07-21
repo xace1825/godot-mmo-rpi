@@ -17,8 +17,8 @@ var peer: ENetMultiplayerPeer
 var last_full_sync: Dictionary = {}
 
 func _ready():
-	Engine.time_scale = 5.0
-	print("Game speed set to 5x for faster testing")
+	Engine.time_scale = 1.0
+	print("Game speed set to 1x")
 	multiplayer.peer_connected.connect(_on_peer_connected)
 	GameState.ensure_world_generated()
 	if not FileAccess.file_exists(GameState.SAVE_PATH):
@@ -119,7 +119,6 @@ func request_build(tile_pos: Vector2i, building_type: int = -1):
 		# Disabled: builders are spawned manually via SPAWN button
 		# GameState.spawn_builder_for_blueprint(tile_pos)
 		rpc("place_blueprint", tile_pos, type_id)
-		_broadcast_state()
 
 func ask_stockpile(topleft: Vector2i, size: Vector2i):
 	if multiplayer.is_server():
@@ -158,12 +157,10 @@ func broadcast_job_priority_sync():
 func broadcast_blueprint_placed(pos: Vector2i, type_id: int):
 	if multiplayer.has_multiplayer_peer():
 		rpc("place_blueprint", pos, type_id)
-		_broadcast_state()
 
 func broadcast_building_completed(pos: Vector2i, type_id: int):
 	if multiplayer.has_multiplayer_peer():
 		rpc("place_building", pos, type_id)
-		_broadcast_state()
 
 func ask_spawn_villager():
 	if multiplayer.is_server():

@@ -14,7 +14,7 @@ const REAL_SECONDS_PER_GAME_HOUR: float = 10.0
 var _tick_timer: float = 0.0
 var _tick_count: int = 0
 var _sync_timer: float = 0.0
-const SYNC_INTERVAL: float = 0.2
+const SYNC_INTERVAL: float = 0.5
 
 func _ready():
 	set_physics_process(false)
