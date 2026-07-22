@@ -324,14 +324,17 @@ func _unhandled_input(event):
 		var tile := tile_map.local_to_map(tile_map.get_local_mouse_position())
 		if tile.x >= 0 and tile.x < WORLD_SIZE and tile.y >= 0 and tile.y < WORLD_SIZE:
 			drag_current_tile = tile
+			queue_redraw()
 	elif event is InputEventMouseMotion and is_dragging_farm:
 		var tile := tile_map.local_to_map(tile_map.get_local_mouse_position())
 		if tile.x >= 0 and tile.x < WORLD_SIZE and tile.y >= 0 and tile.y < WORLD_SIZE:
 			farm_drag_current = tile
+			queue_redraw()
 	elif event is InputEventMouseMotion and is_dragging_room:
 		var tile := tile_map.local_to_map(tile_map.get_local_mouse_position())
 		if tile.x >= 0 and tile.x < WORLD_SIZE and tile.y >= 0 and tile.y < WORLD_SIZE:
 			room_drag_current = tile
+			queue_redraw()
 	elif event is InputEventKey and event.pressed and event.keycode == KEY_SPACE:
 		camera.position = Vector2(WORLD_SIZE * TILE_SIZE / 2, WORLD_SIZE * TILE_SIZE / 2)
 

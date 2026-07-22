@@ -20,6 +20,7 @@ func _ready():
 	Engine.time_scale = 1.0
 	print("Game speed set to 1x")
 	multiplayer.peer_connected.connect(_on_peer_connected)
+	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
 	if multiplayer.is_server():
 		GameState.ensure_world_generated()
 		if not FileAccess.file_exists(GameState.SAVE_PATH):
@@ -112,6 +113,12 @@ func request_place_blueprint(tile_pos: Vector2i, building_type: int = -1):
 @rpc("any_peer", "call_remote", "reliable")
 func request_build(tile_pos: Vector2i, building_type: int = -1):
 	if not multiplayer.is_server():
+		return
+	if tile_pos.x < 0 or tile_pos.x >= PlanetGenerator.WORLD_SIZE or tile_pos.y < 0 or tile_pos.y >= PlanetGenerator.WORLD_SIZE:
+		push_warning("Server: build request out of bounds from peer %d at %s" % [multiplayer.get_remote_sender_id(), tile_pos])
+		return
+	if building_type < 0 or building_type >= PlanetGenerator.BuildingType.size():
+		push_warning("Server: invalid building type %d from peer %d" % [building_type, multiplayer.get_remote_sender_id()])
 		return
 	var peer_id := multiplayer.get_remote_sender_id()
 	print("Server: build request from ", peer_id, " at ", tile_pos, " type ", building_type)
@@ -345,6 +352,11 @@ func _on_peer_connected(id: int):
 	if multiplayer.is_server():
 		# Defer initial state broadcast so the client has finished loading Network autoload.
 		call_deferred("_defer_broadcast_state_to_peer", id)
+
+func _on_peer_disconnected(id: int):
+	print("Peer disconnected: ", id)
+	if multiplayer.is_server():
+		GameState.save_world()
 
 func _defer_broadcast_state_to_peer(id: int):
 	if not multiplayer.has_multiplayer_peer():
