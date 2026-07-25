@@ -152,7 +152,9 @@ func _broadcast_state():
 
 func broadcast_villager_sync():
 	if multiplayer.has_multiplayer_peer():
-		rpc("sync_villagers", GameState.villagers.duplicate())
+		# Deep-copy villager data so server mutations during serialization
+		# cannot create partially-written or zeroed positions on the client.
+		rpc("sync_villagers", _deep_copy_villagers(GameState.villagers))
 
 func broadcast_resource_sync():
 	if multiplayer.has_multiplayer_peer():
@@ -362,6 +364,21 @@ func _defer_broadcast_state_to_peer(id: int):
 	if not multiplayer.has_multiplayer_peer():
 		return
 	rpc_id(id, "sync_world_state", GameState.get_world_data())
-	rpc_id(id, "sync_villagers", GameState.villagers.duplicate())
+	rpc_id(id, "sync_villagers", _deep_copy_villagers(GameState.villagers))
 	rpc_id(id, "sync_day_night", GameState.time_of_day, GameState.day_count)
 	rpc_id(id, "sync_job_priorities", GameState.job_priorities.duplicate())
+
+func _deep_copy_villagers(source: Dictionary) -> Dictionary:
+	var out := {}
+	for id in source:
+		var v: Dictionary = source[id]
+		var copy := v.duplicate(true)
+		# Ensure critical nested keys exist even if the original was malformed
+		if not copy.has("pos") or not (copy["pos"] is Dictionary):
+			copy["pos"] = {"x": 0.0, "y": 0.0}
+		if not copy.has("to_pos") or not (copy["to_pos"] is Dictionary):
+			copy["to_pos"] = copy["pos"].duplicate()
+		if not copy.has("from_pos") or not (copy["from_pos"] is Dictionary):
+			copy["from_pos"] = copy["pos"].duplicate()
+		out[id] = copy
+	return out

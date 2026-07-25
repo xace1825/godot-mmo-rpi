@@ -659,10 +659,17 @@ func _on_stockpile_added(id: String, data: Dictionary):
 func _on_villager_sync(villagers: Dictionary):
 	for id in villagers:
 		var v = villagers[id] as Dictionary
-		var x := float(v["pos"]["x"])
-		var y := float(v["pos"]["y"])
+		var x := float(v.get("pos", {}).get("x", 0.0))
+		var y := float(v.get("pos", {}).get("y", 0.0))
+		# Reject obvious garbage coordinates that could come from malformed sync data
+		if not is_finite(x) or not is_finite(y):
+			push_warning("Client: villager ", id, " has non-finite position (", x, ",", y, ") — skipping")
+			continue
+		if x < -1.0 or x >= PlanetGenerator.WORLD_SIZE or y < -1.0 or y >= PlanetGenerator.WORLD_SIZE:
+			push_warning("Client: villager ", id, " position out of world bounds (", x, ",", y, ") — skipping")
+			continue
 		var target := Vector2(x * TILE_SIZE + TILE_SIZE / 2, y * TILE_SIZE + TILE_SIZE / 2)
-		var job := v["job"] as String
+		var job := v.get("job", "idle") as String
 		var carrying: Dictionary = v.get("carrying", {"resource": "", "amount": 0})
 		if client_villagers.has(id):
 			var node = client_villagers[id]

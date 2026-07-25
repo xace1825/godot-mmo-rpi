@@ -78,6 +78,9 @@ func set_carrying(resource: String, amount: int):
 		carrying_sprite.region_rect = Rect2(idx * 32, 0, 32, 32)
 
 func set_next_position(next_pos: Vector2):
+	if not is_finite(next_pos.x) or not is_finite(next_pos.y):
+		push_warning("Villager received non-finite next position: ", next_pos)
+		return
 	if target_position.is_equal_approx(next_pos):
 		return
 	previous_position = position
@@ -86,6 +89,11 @@ func set_next_position(next_pos: Vector2):
 	hop_phase = 0.0
 	last_move_dir = _get_dir(target_position - previous_position)
 	_update_frame(true)
+	# Reset any visual hop offset so the new interpolation starts from the actual node position
+	sprite.position.y = 0.0
+	if shadow:
+		shadow.scale = _shadow_base_scale
+
 
 func _process(delta):
 	if target_position != previous_position:
