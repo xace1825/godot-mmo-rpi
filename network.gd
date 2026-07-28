@@ -10,6 +10,11 @@ signal world_reset(data: Dictionary)
 signal ground_items_sync(items: Dictionary)
 signal day_night_sync(time_of_day: float, day_count: int)
 signal job_priority_sync(priorities: Dictionary)
+signal player_joined(id: int, data: Dictionary)
+signal player_left(id: int)
+signal player_moved(id: int, pos: Vector2)
+signal chat_message(id: int, text: String)
+signal base_settled_at(pos: Vector2i)
 
 const DEFAULT_PORT: int = 7777
 
@@ -23,20 +28,25 @@ func _ready():
 	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
 	if multiplayer.is_server():
 		GameState.ensure_world_generated()
-		if not FileAccess.file_exists(GameState.SAVE_PATH):
+		# In true dedicated multiplayer mode (launched with --dedicated), do not create
+		# a free-for-all central stockpile. Human players choose their own base tile.
+		var is_multiplayer_server := OS.has_feature("dedicated_server")
+		if not is_multiplayer_server and not FileAccess.file_exists(GameState.SAVE_PATH):
 			GameState.create_default_stockpile()
 			print("Server: created default starting stockpile")
+		elif is_multiplayer_server:
+			print("Server: dedicated multiplayer mode - waiting for players to settle their bases")
 		else:
 			print("Server: save file exists, skipping default stockpile creation")
 
-func start_server(port: int = DEFAULT_PORT) -> bool:
+func start_server(port: int = DEFAULT_PORT, bind_ip: String = "0.0.0.0") -> bool:
 	peer = ENetMultiplayerPeer.new()
 	var err := peer.create_server(port)
 	if err != OK:
 		push_error("Failed to create server: %d" % err)
 		return false
 	multiplayer.multiplayer_peer = peer
-	print("Server listening on port ", port)
+	print("Server listening on ", bind_ip, ":", port)
 	return true
 
 func start_client(ip: String, port: int = DEFAULT_PORT) -> bool:
@@ -135,6 +145,33 @@ func ask_stockpile(topleft: Vector2i, size: Vector2i):
 		push_warning("Cannot ask_stockpile: peer not connected")
 		return
 	rpc_id(1, "request_stockpile", topleft, size)
+
+func ask_settle_base(pos: Vector2i):
+	if multiplayer.is_server():
+		return
+	if not _is_peer_connected():
+		push_warning("Cannot ask_settle_base: peer not connected")
+		return
+	rpc_id(1, "request_settle_base", pos)
+
+@rpc("any_peer", "call_remote", "reliable")
+func request_settle_base(pos: Vector2i):
+	if not multiplayer.is_server():
+		return
+	var peer_id := multiplayer.get_remote_sender_id()
+	if GameState.player_bases.has(peer_id):
+		push_warning("Server: player %d already settled" % peer_id)
+		return
+	if GameState.settle_player_base(peer_id, pos):
+		rpc_id(peer_id, "base_settled", pos)
+		_broadcast_state()
+	else:
+		push_warning("Server: player %d failed to settle at %s" % [peer_id, pos])
+
+@rpc("authority", "call_remote", "reliable")
+func base_settled(pos: Vector2i):
+	print("Client: base settled at ", pos)
+	base_settled_at.emit(pos)
 
 @rpc("any_peer", "call_remote", "reliable")
 func request_stockpile(topleft: Vector2i, size: Vector2i):
@@ -354,11 +391,85 @@ func _on_peer_connected(id: int):
 	if multiplayer.is_server():
 		# Defer initial state broadcast so the client has finished loading Network autoload.
 		call_deferred("_defer_broadcast_state_to_peer", id)
+		# Register and sync the new human player
+		call_deferred("_register_player", id)
 
 func _on_peer_disconnected(id: int):
 	print("Peer disconnected: ", id)
 	if multiplayer.is_server():
+		PlayerManager.unregister_player(id)
+		rpc("sync_player_left", id)
 		GameState.save_world()
+
+func _register_player(id: int):
+	if not multiplayer.is_server():
+		return
+	var color := PlayerManager.next_player_color()
+	var name := "Player %d" % id
+	PlayerManager.register_player(id, name, color, Vector2(0, 0))
+	rpc("sync_player_joined", id, name, color)
+	print("Server: registered player ", id, " name=", name)
+
+@rpc("authority", "call_remote", "reliable")
+func sync_player_joined(id: int, name: String, color: Color):
+	PlayerManager.register_player(id, name, color, Vector2(0, 0))
+	player_joined.emit(id, PlayerManager.players[id])
+
+@rpc("authority", "call_remote", "reliable")
+func sync_player_left(id: int):
+	PlayerManager.unregister_player(id)
+	player_left.emit(id)
+
+func ask_chat(text: String):
+	if multiplayer.is_server():
+		return
+	if not _is_peer_connected():
+		push_warning("Cannot ask_chat: not connected")
+		return
+	rpc_id(1, "request_chat", text)
+
+func broadcast_chat(id: int, text: String):
+	if multiplayer.has_multiplayer_peer():
+		rpc("sync_chat", id, text)
+		chat_message.emit(id, text)
+
+@rpc("any_peer", "call_remote", "reliable")
+func request_chat(text: String):
+	if not multiplayer.is_server():
+		return
+	var id := multiplayer.get_remote_sender_id()
+	broadcast_chat(id, text)
+
+@rpc("authority", "call_remote", "reliable")
+func sync_chat(id: int, text: String):
+	PlayerManager.receive_chat(id, text)
+	chat_message.emit(id, text)
+
+func ask_report_position(pos: Vector2):
+	if multiplayer.is_server():
+		return
+	if not _is_peer_connected():
+		push_warning("Cannot ask_report_position: not connected")
+		return
+	rpc_id(1, "report_player_position", pos)
+
+func broadcast_player_position(id: int, pos: Vector2):
+	if multiplayer.has_multiplayer_peer():
+		rpc("sync_player_position", id, pos)
+
+@rpc("any_peer", "call_remote", "unreliable")
+func report_player_position(pos: Vector2):
+	if not multiplayer.is_server():
+		return
+	var id := multiplayer.get_remote_sender_id()
+	if PlayerManager.players.has(id):
+		PlayerManager.update_player_position(id, pos)
+		broadcast_player_position(id, pos)
+
+@rpc("authority", "call_remote", "unreliable")
+func sync_player_position(id: int, pos: Vector2):
+	PlayerManager.update_player_position(id, pos)
+	player_moved.emit(id, pos)
 
 func _defer_broadcast_state_to_peer(id: int):
 	if not multiplayer.has_multiplayer_peer():
@@ -367,6 +478,10 @@ func _defer_broadcast_state_to_peer(id: int):
 	rpc_id(id, "sync_villagers", _deep_copy_villagers(GameState.villagers))
 	rpc_id(id, "sync_day_night", GameState.time_of_day, GameState.day_count)
 	rpc_id(id, "sync_job_priorities", GameState.job_priorities.duplicate())
+	# Sync already-connected human players so late-joining clients see them.
+	for pid in PlayerManager.players:
+		var pdata: Dictionary = PlayerManager.players[pid]
+		rpc_id(id, "sync_player_joined", pid, pdata.get("name", "Player %d" % pid), pdata.get("color", Color.WHITE))
 
 func _deep_copy_villagers(source: Dictionary) -> Dictionary:
 	var out := {}

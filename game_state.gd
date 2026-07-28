@@ -2,6 +2,9 @@ extends Node
 
 const SAVE_PATH: String = "user://world_save.json"
 
+# player_id (as String) -> {x, y} starting base position
+var player_bases: Dictionary = {}
+
 var buildings: Dictionary = {}
 var floors: Dictionary = {}
 var blueprints: Dictionary = {}
@@ -44,9 +47,10 @@ func ensure_world_generated():
 
 func get_tile_type(pos: Vector2i) -> int:
 	ensure_world_generated()
-	if pos.x < 0 or pos.x >= PlanetGenerator.WORLD_SIZE or pos.y < 0 or pos.y >= PlanetGenerator.WORLD_SIZE:
+	var wx := PlanetGenerator.wrap_x(pos.x)
+	if pos.y < 0 or pos.y >= PlanetGenerator.WORLD_SIZE:
 		return PlanetGenerator.TileType.DEEP_OCEAN
-	return world[pos.x][pos.y]
+	return world[wx][pos.y]
 
 func can_build_at(pos: Vector2i) -> bool:
 	var type := get_tile_type(pos)
@@ -137,9 +141,11 @@ func recalculate_rooms():
 				# Stop at walls and world borders
 				if walls.has(nkey):
 					continue
-				if neighbor.x < 0 or neighbor.x >= PlanetGenerator.WORLD_SIZE or neighbor.y < 0 or neighbor.y >= PlanetGenerator.WORLD_SIZE:
+				var nwx := PlanetGenerator.wrap_x(neighbor.x)
+				if neighbor.y < 0 or neighbor.y >= PlanetGenerator.WORLD_SIZE:
 					room["is_enclosed"] = false
 					continue
+				neighbor.x = nwx
 				# Empty outdoor space adjacent to non-door tile breaks enclosure
 				if not floor_tiles.has(nkey):
 					if not current_is_door:
@@ -170,6 +176,9 @@ func _key_pos(key: String) -> Vector2i:
 	var parts: PackedStringArray = key.split(",")
 	return Vector2i(int(parts[0]), int(parts[1]))
 
+func _pos_key(pos: Vector2i) -> String:
+	return "%d,%d" % [pos.x, pos.y]
+
 func _pos_in_stockpile(pos: Vector2i) -> bool:
 	for stock_id: String in stockpiles:
 		var stock: Dictionary = stockpiles[stock_id]
@@ -179,12 +188,66 @@ func _pos_in_stockpile(pos: Vector2i) -> bool:
 			return true
 	return false
 
-func _pos_key(pos: Vector2i) -> String:
-	return "%d,%d" % [pos.x, pos.y]
+func _is_near_other_player_base(pos: Vector2i, exclude_player: int = 0, min_distance: int = 20) -> bool:
+	var exclude_sid := str(exclude_player)
+	for sid in player_bases:
+		if sid == exclude_sid:
+			continue
+		var base: Dictionary = player_bases[sid]
+		var dx: int = abs(int(base.get("x", 0)) - pos.x)
+		var dy: int = abs(int(base.get("y", 0)) - pos.y)
+		if dx < min_distance and dy < min_distance:
+			return true
+	return false
+
+func is_valid_settle_tile(pos: Vector2i, exclude_player: int = 0) -> bool:
+	var wx := PlanetGenerator.wrap_x(pos.x)
+	if pos.y < 0 or pos.y >= PlanetGenerator.WORLD_SIZE:
+		return false
+	var wrapped := Vector2i(wx, pos.y)
+	if not can_build_at(wrapped):
+		return false
+	var key: String = _pos_key(wrapped)
+	if buildings.has(key) or blueprints.has(key) or stockpiles.has(key) or floors.has(key):
+		return false
+	if _is_near_other_player_base(wrapped, exclude_player):
+		return false
+	return true
+
+func settle_player_base(player_id: int, pos: Vector2i) -> bool:
+	var sid := str(player_id)
+	var wx := PlanetGenerator.wrap_x(pos.x)
+	var wrapped := Vector2i(wx, pos.y)
+	if player_bases.has(sid):
+		print("Server: player ", sid, " already has a base at ", player_bases[sid])
+		return false
+	if not is_valid_settle_tile(wrapped, player_id):
+		print("Server: invalid settle tile ", wrapped, " for player ", sid)
+		return false
+	player_bases[sid] = {"x": wrapped.x, "y": wrapped.y}
+	print("Server: player ", sid, " settled at ", wrapped)
+	# Create a personal 2x2 starting stockpile around the base tile
+	var stock_top_left := Vector2i(wrapped.x, wrapped.y)
+	var zone_keys: Array = []
+	for ox in range(2):
+		for oy in range(2):
+			var tile := Vector2i(PlanetGenerator.wrap_x(stock_top_left.x + ox), stock_top_left.y + oy)
+			zone_keys.append(_pos_key(tile))
+	var stock_id := "stock_%d_%d_1" % [wrapped.x, wrapped.y]
+	stockpiles[stock_id] = {
+		"topleft": {"x": wrapped.x, "y": wrapped.y},
+		"size": {"x": 2, "y": 2},
+		"zone": zone_keys,
+		"resources": {"wood": 500, "stone": 500, "food": 500, "prepared_food": 100, "planks": 100, "blocks": 100, "tools": 20}
+	}
+	_recalc_total_resources()
+	print("Server: added settlement stockpile ", stock_id)
+	Network.broadcast_stockpile_added(stock_id, stockpiles[stock_id])
+	return true
 
 func add_blueprint(pos: Vector2i, building_type: int = -1) -> int:
 	ensure_world_generated()
-	var key = _pos_key(pos)
+	var key := _pos_key(pos)
 	if blueprints.has(key):
 		var existing: Dictionary = blueprints[key]
 		# Allow furniture/buildings to replace a planned floor blueprint (RimWorld-style)
@@ -705,7 +768,7 @@ func set_villager_job(villager_id: String, job: String) -> bool:
 	v["job"] = job
 	v["state"] = "idle"
 	v["target_blueprint"] = ""
-	v["workplace"] = v["pos"].duplicate()
+	v["workplace"] = {}
 	v["progress"] = 0.0
 	v["carrying"] = {"resource": "", "amount": 0}
 	v["to_pos"] = v["pos"].duplicate()
@@ -925,8 +988,23 @@ func get_world_data() -> Dictionary:
 		"villagers": villagers.duplicate(),
 		"time_of_day": time_of_day,
 		"day_count": day_count,
-		"job_priorities": job_priorities.duplicate()
+		"job_priorities": job_priorities.duplicate(),
+		"player_bases": player_bases.duplicate(true)
 	}
+
+func _deep_copy_villagers(source: Dictionary) -> Dictionary:
+	var out := {}
+	for id in source:
+		var v: Dictionary = source[id]
+		var copy := v.duplicate(true)
+		if not copy.has("pos") or not (copy["pos"] is Dictionary):
+			copy["pos"] = {"x": 0.0, "y": 0.0}
+		if not copy.has("to_pos") or not (copy["to_pos"] is Dictionary):
+			copy["to_pos"] = copy["pos"].duplicate()
+		if not copy.has("from_pos") or not (copy["from_pos"] is Dictionary):
+			copy["from_pos"] = copy["pos"].duplicate()
+		out[id] = copy
+	return out
 
 func load_world():
 	ensure_world_generated()
@@ -945,6 +1023,7 @@ func load_world():
 		blueprints = data.get("blueprints", {})
 		stockpiles = data.get("stockpiles", {})
 		ground_items = data.get("ground_items", {})
+		player_bases = data.get("player_bases", {})
 		resources = data.get("resources", {"wood": 0, "food": 0, "stone": 0, "prepared_food": 0, "planks": 0, "blocks": 0})
 		time_of_day = data.get("time_of_day", 6.0)
 		day_count = data.get("day_count", 1)

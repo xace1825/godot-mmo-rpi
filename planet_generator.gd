@@ -1,6 +1,6 @@
 class_name PlanetGenerator
 
-const WORLD_SIZE: int = 128
+const WORLD_SIZE: int = 256
 const TILE_SIZE: int = 32
 const CHUNK_SIZE: int = 32
 
@@ -62,23 +62,23 @@ static func _make_noise(seed_value: int, freq: float, octaves: int, type: int = 
 	return noise
 
 static func generate_world(seed_value: int = 0) -> Array:
-	var continent_noise := _make_noise(seed_value, 0.015, 5, FastNoiseLite.TYPE_SIMPLEX)
-	var detail_noise := _make_noise(seed_value + 1, 0.06, 3, FastNoiseLite.TYPE_SIMPLEX_SMOOTH)
-	var river_noise := _make_noise(seed_value + 2, 0.04, 4, FastNoiseLite.TYPE_SIMPLEX)
-	var temperature_noise := _make_noise(seed_value + 3, 0.02, 3, FastNoiseLite.TYPE_SIMPLEX)
-	var moisture_noise := _make_noise(seed_value + 4, 0.03, 4, FastNoiseLite.TYPE_SIMPLEX)
+	var continent_noise := _make_noise(seed_value, 0.004, 6, FastNoiseLite.TYPE_SIMPLEX)
+	var detail_noise := _make_noise(seed_value + 1, 0.015, 4, FastNoiseLite.TYPE_SIMPLEX_SMOOTH)
+	var river_noise := _make_noise(seed_value + 2, 0.012, 4, FastNoiseLite.TYPE_SIMPLEX)
+	var temperature_noise := _make_noise(seed_value + 3, 0.006, 4, FastNoiseLite.TYPE_SIMPLEX)
+	var moisture_noise := _make_noise(seed_value + 4, 0.008, 5, FastNoiseLite.TYPE_SIMPLEX)
 
 	var world := []
 	for x in range(WORLD_SIZE):
 		var col := []
 		for y in range(WORLD_SIZE):
-			var height: float = continent_noise.get_noise_2d(float(x), float(y)) * 0.8 + detail_noise.get_noise_2d(float(x), float(y)) * 0.25
+			var height: float = continent_noise.get_noise_2d(float(x), float(y)) * 0.85 + detail_noise.get_noise_2d(float(x), float(y)) * 0.2
 			var river: float = river_noise.get_noise_2d(float(x), float(y))
-			if height > HEIGHT_LOW and height < HEIGHT_HIGH and river > 0.6:
-				height -= 0.25
+			if height > HEIGHT_LOW and height < HEIGHT_HIGH and river > 0.55:
+				height -= 0.3
 
 			var latitude: float = 1.0 - 2.0 * (float(y) / float(WORLD_SIZE - 1))
-			var temp: float = -abs(latitude) + 0.5 + temperature_noise.get_noise_2d(float(x), float(y)) * 0.3
+			var temp: float = -abs(latitude) + 0.55 + temperature_noise.get_noise_2d(float(x), float(y)) * 0.25
 			var moisture: float = moisture_noise.get_noise_2d(float(x), float(y))
 
 			col.append(_resolve_tile(height, temp, moisture))
@@ -91,7 +91,7 @@ static func _resolve_tile(height: float, temp: float, moisture: float) -> int:
 	if height < HEIGHT_OCEAN:
 		return TileType.OCEAN
 	if height < HEIGHT_SHORE:
-		return TileType.GRASSLAND  # removed sand/shore, now buildable grass
+		return TileType.SHORE
 	if height >= HEIGHT_PEAK:
 		return TileType.PEAK
 	if height >= HEIGHT_HIGH:
@@ -105,33 +105,61 @@ static func _resolve_tile(height: float, temp: float, moisture: float) -> int:
 		return TileType.TAIGA if moisture > WET_WET else TileType.TUNDRA
 	if temp < TEMP_WARM:
 		if moisture < WET_DRY:
-			return TileType.GRASSLAND  # removed desert
+			return TileType.GRASSLAND
 		return TileType.FOREST if moisture > WET_WET else TileType.GRASSLAND
 	if temp < TEMP_HOT:
 		if moisture < WET_DRY:
-			return TileType.GRASSLAND  # removed desert
+			return TileType.GRASSLAND
 		return TileType.JUNGLE if moisture > WET_WET else TileType.FOREST
 
 	if moisture < WET_DRY:
-		return TileType.GRASSLAND  # removed desert
+		return TileType.DESERT
 	return TileType.JUNGLE if moisture > WET_WET else TileType.FOREST
 
 static func tile_to_atlas_coords(type: int) -> Vector2i:
 	return Vector2i(type, 0)
 
+static func wrap_x(x: int) -> int:
+	while x < 0:
+		x += WORLD_SIZE
+	return x % WORLD_SIZE
+
+static func get_tile_type_from_world(world: Array, pos: Vector2i) -> int:
+	var wx := wrap_x(pos.x)
+	if pos.y < 0 or pos.y >= WORLD_SIZE:
+		return TileType.DEEP_OCEAN
+	return world[wx][pos.y]
+
 static func is_buildable(type: int) -> bool:
 	match type:
-		TileType.DEEP_OCEAN, TileType.OCEAN:
+		TileType.DEEP_OCEAN, TileType.OCEAN, TileType.PEAK, TileType.MOUNTAIN:
 			return false
 		_:
 			return true
 
 static func is_walkable_tile(tile_type: int) -> bool:
 	match tile_type:
-		TileType.DEEP_OCEAN, TileType.OCEAN:
+		TileType.DEEP_OCEAN, TileType.OCEAN, TileType.PEAK:
 			return false
 		_:
 			return true
+
+static func tile_type_name(type: int) -> String:
+	match type:
+		TileType.DEEP_OCEAN: return "Deep Ocean"
+		TileType.OCEAN: return "Ocean"
+		TileType.SHORE: return "Shore"
+		TileType.GRASSLAND: return "Grassland"
+		TileType.FOREST: return "Forest"
+		TileType.JUNGLE: return "Jungle"
+		TileType.DESERT: return "Desert"
+		TileType.TAIGA: return "Taiga"
+		TileType.TUNDRA: return "Tundra"
+		TileType.SNOW: return "Snow"
+		TileType.HILLS: return "Hills"
+		TileType.MOUNTAIN: return "Mountain"
+		TileType.PEAK: return "Peak"
+		_: return "Unknown"
 
 static func is_walkable_building(building_type: int) -> bool:
 	match building_type:
@@ -279,6 +307,13 @@ static func get_consumes_for_job(job: String) -> String:
 		_:
 			return ""
 
+static func get_extra_consumes_for_job(job: String) -> Dictionary:
+	match job:
+		"toolsmith":
+			return {"blocks": 1}
+		_:
+			return {}
+
 static func get_resource_for_building(building_type: int) -> String:
 	return get_resource_for_job(get_job_type(building_type))
 
@@ -312,7 +347,7 @@ static func building_type_to_rect(type: int) -> Rect2:
 			return Rect2(0, 0, 32, 32)
 
 static func get_chunk_coords(x: int, y: int) -> Vector2i:
-	return Vector2i(floor(float(x) / CHUNK_SIZE), floor(y / float(CHUNK_SIZE)))
+	return Vector2i(floor(float(wrap_x(x)) / CHUNK_SIZE), floor(y / float(CHUNK_SIZE)))
 
 static func get_chunk_count() -> int:
 	return ceili(float(WORLD_SIZE) / CHUNK_SIZE)

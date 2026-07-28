@@ -17,6 +17,53 @@ zoom = Vector2(0.5, 0.5)
 tile_set = ExtResource("2_tileset")
 format = 2
 
+[node name="FogOfWar" type="TileMap" parent="."]
+tile_set = ExtResource("2_tileset")
+format = 2
+modulate = Color(0.05, 0.05, 0.08, 0.85)
+
 [node name="BuildUI" parent="." instance=ExtResource("3_buildui")]
 
 [node name="InfoPanel" parent="." instance=ExtResource("4_infopanel")]
+
+[node name="ChatUI" type="CanvasLayer" parent="."]
+
+[node name="ChatPanel" type="Panel" parent="ChatUI"]
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 10.0
+offset_top = -200.0
+offset_right = 360.0
+offset_bottom = -10.0
+grow_vertical = 0
+
+[node name="VBoxContainer" type="VBoxContainer" parent="ChatUI/ChatPanel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 5.0
+offset_top = 5.0
+offset_right = -5.0
+offset_bottom = -5.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="ChatLog" type="RichTextLabel" parent="ChatUI/ChatPanel/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+bbcode_enabled = true
+scroll_following = true
+
+[node name="HBoxContainer" type="HBoxContainer" parent="ChatUI/ChatPanel/VBoxContainer"]
+layout_mode = 2
+
+[node name="ChatInput" type="LineEdit" parent="ChatUI/ChatPanel/VBoxContainer/HBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "Enter message..."
+
+[node name="SendButton" type="Button" parent="ChatUI/ChatPanel/VBoxContainer/HBoxContainer"]
+layout_mode = 2
+text = "Send"

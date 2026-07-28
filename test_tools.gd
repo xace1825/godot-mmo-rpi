@@ -10,13 +10,15 @@ var phase_entered := false
 
 var smithy_pos := Vector2i(67, 64)
 
-var last_resources: Dictionary = {"planks": 0, "tools": 0}
+var last_resources: Dictionary = {"planks": 0, "tools": 0, "blocks": 0}
 var max_tools: int = 0
 var sync_data: Dictionary = {}
 var assigned := false
 var saw_tool_produced := false
+var smithy_built := false
 
 func _ready():
+	Engine.time_scale = 5.0
 	Network.full_sync.connect(_on_full_sync)
 	Network.blueprint_placed.connect(_on_blueprint)
 	Network.building_placed.connect(_on_building_completed)
@@ -51,9 +53,17 @@ func _physics_process(_delta):
 				Network.ask_spawn_villager()
 				print("TEST: spawned villager")
 			if elapsed > 3.0:
+				test_phase = "wait_smithy"
+				phase_entered = false
+				phase_start_time = Time.get_ticks_msec()
+		"wait_smithy":
+			if smithy_built:
+				print("TEST: smithy built")
 				test_phase = "assign"
 				phase_entered = false
 				phase_start_time = Time.get_ticks_msec()
+			elif elapsed > 60.0:
+				_fail("smithy did not complete")
 		"assign":
 			if not phase_entered:
 				phase_entered = true
@@ -84,13 +94,15 @@ func _on_blueprint(pos: Vector2i, type_id: int):
 
 func _on_building_completed(pos: Vector2i, type_id: int):
 	print("TEST: building completed at ", pos, " type ", type_id)
+	if pos == smithy_pos and type_id == PlanetGenerator.BuildingType.SMITHY:
+		smithy_built = true
 
 func _on_resource_sync(resources: Dictionary):
 	last_resources = resources.duplicate()
 	var t: int = int(resources.get("tools", 0))
 	if t > max_tools:
 		max_tools = t
-	print("TEST: resources planks=", resources.get("planks", 0), " tools=", resources.get("tools", 0), " max_tools=", max_tools)
+	print("TEST: resources planks=", resources.get("planks", 0), " blocks=", resources.get("blocks", 0), " tools=", resources.get("tools", 0), " max_tools=", max_tools)
 	if t > 20:
 		saw_tool_produced = true
 		print("TEST: tools produced")
@@ -102,6 +114,7 @@ func _on_full_sync(data: Dictionary):
 func _verify():
 	var ok := true
 	var planks: int = last_resources.get("planks", 0)
+	var blocks: int = last_resources.get("blocks", 0)
 	var tools: int = last_resources.get("tools", 0)
 
 	if not saw_tool_produced:
@@ -110,11 +123,14 @@ func _verify():
 	if planks >= 100:
 		_fail("toolsmith did not consume planks (" + str(planks) + ")")
 		ok = false
+	if blocks >= 100:
+		_fail("toolsmith did not consume blocks (" + str(blocks) + ")")
+		ok = false
 	if max_tools <= 20:
 		_fail("tools not produced (max=" + str(max_tools) + ")")
 		ok = false
 	if ok:
-		print("TEST PASS: toolsmith produces tools from planks")
+		print("TEST PASS: toolsmith produces tools from planks and blocks")
 		get_tree().quit()
 
 func _fail(msg: String):

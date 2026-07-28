@@ -3,6 +3,9 @@ extends Node2D
 @onready var tile_map: TileMap = $TileMap
 @onready var camera: Camera2D = $Camera2D
 @onready var build_ui: CanvasLayer = $BuildUI
+@onready var chat_input: LineEdit = $ChatUI/ChatPanel/VBoxContainer/HBoxContainer/ChatInput
+@onready var chat_log: RichTextLabel = $ChatUI/ChatPanel/VBoxContainer/ChatLog
+@onready var send_button: Button = $ChatUI/ChatPanel/VBoxContainer/HBoxContainer/SendButton
 
 const TILE_SIZE: int = PlanetGenerator.TILE_SIZE
 const WORLD_SIZE: int = PlanetGenerator.WORLD_SIZE
@@ -26,6 +29,8 @@ var client_stockpile_labels: Dictionary = {}
 var client_stockpile_sprites: Dictionary = {}
 var client_villager_nodes: Dictionary = {}
 var client_ground_item_nodes: Dictionary = {}
+var explored_tiles: Dictionary = {}
+var fog_of_war: TileMap = null
 var is_server: bool = false
 var camera_frames: int = 0
 var camera_speed: float = 1200.0
@@ -52,20 +57,156 @@ var is_dragging_farm: bool = false
 var farm_drag_start: Vector2i = Vector2i(-1, -1)
 var farm_drag_current: Vector2i = Vector2i(-1, -1)
 
-func _ready():
-	is_server = OS.has_feature("dedicated_server") or DisplayServer.get_name() == "headless"
+# Settlement choice state
+var _settle_mode: bool = false
+var _settle_overlay: Control = null
+var _settle_label: Label = null
+var _settle_cursor: ColorRect = null
+var _settle_last_tile: Vector2i = Vector2i(-1, -1)
 
-	if is_server:
-		print("Starting DEDICATED SERVER mode")
+func _ready():
+	is_server = OS.has_feature("dedicated_server") or GameLaunch.mode == "host"
+	var launch_mode := GameLaunch.mode
+
+	if is_server or launch_mode == "host":
+		print("Starting SERVER/HOST mode")
 		Network.start_server()
 		GameState.load_world()
-		# Starting resources are now placed into the first stockpile, not globally
-		print("Server: waiting for first stockpile for starting resources")
 		get_tree().set_auto_accept_quit(false)
-	else:
+	elif launch_mode == "singleplayer":
+		print("Starting SINGLEPLAYER mode")
+		# Use offline peer so multiplayer.is_server() is true for local ticks,
+		# but no network connection is required.
+		var offline := OfflineMultiplayerPeer.new()
+		multiplayer.multiplayer_peer = offline
+		GameState.ensure_world_generated()
+		if GameState.stockpiles.is_empty():
+			GameState.create_default_stockpile()
+		setup_client()
+		# Manually trigger a full sync from local state so the world renders immediately.
+		var data := GameState.get_world_data()
+		call_deferred("_on_full_sync", data)
+	elif launch_mode == "client":
 		print("Starting CLIENT mode")
 		setup_client()
+		target_server_ip = GameLaunch.server_ip
+		target_server_port = GameLaunch.server_port
 		_parse_server_args()
+		Network.base_settled_at.connect(_on_base_settled)
+	elif GameLaunch.mode_set_by_cmdline:
+		# A mode was explicitly requested via --mode but not recognized.
+		print("Unknown launch mode: ", launch_mode)
+		get_tree().quit(1)
+	else:
+		# Fallback for direct launch without menu and without --mode: behave as singleplayer.
+		print("Starting SINGLEPLAYER mode (fallback)")
+		var offline := OfflineMultiplayerPeer.new()
+		multiplayer.multiplayer_peer = offline
+		GameState.ensure_world_generated()
+		if GameState.stockpiles.is_empty():
+			GameState.create_default_stockpile()
+		setup_client()
+		var data := GameState.get_world_data()
+		call_deferred("_on_full_sync", data)
+		GameLaunch.mode = "singleplayer"
+
+func _enter_settle_mode():
+	if _settle_overlay != null:
+		return
+	_settle_mode = true
+	_build_settle_ui()
+	print("Client: entering settle mode")
+
+func _build_settle_ui():
+	var layer := CanvasLayer.new()
+	layer.layer = 10
+	add_child(layer)
+	_settle_overlay = Control.new()
+	_settle_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_settle_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(_settle_overlay)
+
+	var panel := Panel.new()
+	panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP, Control.PRESET_MODE_KEEP_SIZE)
+	panel.offset_top = 20
+	panel.offset_bottom = 80
+	panel.custom_minimum_size = Vector2(560, 60)
+	var panel_style := StyleBoxFlat.new()
+	panel_style.bg_color = Color(0.05, 0.05, 0.08, 0.85)
+	panel_style.corner_radius_top_left = 8
+	panel_style.corner_radius_top_right = 8
+	panel_style.corner_radius_bottom_left = 8
+	panel_style.corner_radius_bottom_right = 8
+	panel.add_theme_stylebox_override("panel", panel_style)
+	_settle_overlay.add_child(panel)
+
+	_settle_label = Label.new()
+	_settle_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_settle_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_settle_label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_settle_label.text = "Choose an empty tile for your base (click to settle)"
+	_settle_label.add_theme_font_size_override("font_size", 22)
+	_settle_label.add_theme_color_override("font_color", Color(1, 1, 1))
+	_settle_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0))
+	_settle_label.add_theme_constant_override("shadow_offset_x", 2)
+	_settle_label.add_theme_constant_override("shadow_offset_y", 2)
+	panel.add_child(_settle_label)
+
+func _exit_settle_mode():
+	_settle_mode = false
+	if _settle_overlay != null and is_instance_valid(_settle_overlay):
+		var layer = _settle_overlay.get_parent()
+		if layer != null and is_instance_valid(layer):
+			layer.queue_free()
+		else:
+			_settle_overlay.queue_free()
+		_settle_overlay = null
+		_settle_label = null
+	if _settle_cursor != null and is_instance_valid(_settle_cursor):
+		_settle_cursor.queue_free()
+		_settle_cursor = null
+
+func _on_base_settled(pos: Vector2i):
+	print("Client: base settled at ", pos)
+	_exit_settle_mode()
+	_reveal_fog_around(pos, FOG_RADIUS)
+	_focus_camera_on(Vector2(pos.x * TILE_SIZE + TILE_SIZE / 2, pos.y * TILE_SIZE + TILE_SIZE / 2))
+
+func _focus_camera_on(target: Vector2):
+	if not camera:
+		return
+	camera.global_position = target
+	camera.position = target
+	camera.offset = Vector2.ZERO
+	camera.make_current()
+	camera.force_update_scroll()
+	camera.reset_smoothing()
+	camera_target_position = target
+	if chunk_manager:
+		chunk_manager.update(target)
+
+func _is_valid_settle_tile_client(pos: Vector2i) -> bool:
+	if pos.x < 0 or pos.x >= WORLD_SIZE or pos.y < 0 or pos.y >= WORLD_SIZE:
+		return false
+	var type := PlanetGenerator.get_tile_type_from_world(world_data, pos)
+	if not PlanetGenerator.is_buildable(type):
+		return false
+	var key := "%d,%d" % [pos.x, pos.y]
+	if client_buildings.has(key) or client_blueprints.has(key) or client_stockpiles.has(key) or client_floors.has(key):
+		return false
+	var bases: Dictionary = Network.last_full_sync.get("player_bases", {})
+	var my_id := str(multiplayer.get_unique_id())
+	for pid in bases:
+		if pid == my_id:
+			continue
+		var base: Dictionary = bases[pid]
+		var base_x: int = int(base.get("x", 0))
+		var base_y: int = int(base.get("y", 0))
+		var dx: int = abs(base_x - pos.x)
+		var dy: int = abs(base_y - pos.y)
+		if dx < 20 and dy < 20:
+			return false
+	return true
 
 func _notification(what: int):
 	if what == NOTIFICATION_WM_CLOSE_REQUEST and is_server:
@@ -74,6 +215,7 @@ func _notification(what: int):
 		get_tree().quit()
 
 func setup_client():
+	fog_of_war = $FogOfWar
 	Network.building_placed.connect(_on_building_placed)
 	Network.blueprint_placed.connect(_on_blueprint_placed)
 	Network.stockpile_added.connect(_on_stockpile_added)
@@ -84,9 +226,16 @@ func setup_client():
 	Network.ground_items_sync.connect(_on_ground_items_sync)
 	Network.day_night_sync.connect(_on_day_night_sync)
 	Network.job_priority_sync.connect(_on_job_priority_sync)
+	Network.player_joined.connect(_on_player_joined)
+	Network.player_left.connect(_on_player_left)
+	Network.chat_message.connect(_on_chat_message)
 	build_ui.build_type_selected.connect(_on_build_type_selected)
 	build_ui.reset_requested.connect(_on_reset_requested)
 	build_ui.spawn_requested.connect(_on_spawn_requested)
+	if send_button:
+		send_button.pressed.connect(_on_send_chat)
+	if chat_input:
+		chat_input.text_submitted.connect(_on_chat_input_submitted)
 	info_panel = $InfoPanel
 	_setup_day_night_overlay()
 
@@ -147,9 +296,9 @@ func _on_build_type_selected(type_id: int):
 	print("Client selected build type: ", type_id)
 
 func _parse_server_args():
-	var server_ip = DEFAULT_SERVER_IP
-	var server_port = DEFAULT_SERVER_PORT
-	var args = OS.get_cmdline_args()
+	var server_ip := target_server_ip
+	var server_port := target_server_port
+	var args := OS.get_cmdline_args()
 	print("[CLIENT] raw cmdline args: ", args)
 	var positional: Array = []
 	var i = 0
@@ -167,16 +316,22 @@ func _parse_server_args():
 			i += 1
 		else:
 			i += 1
-	if positional.size() >= 1:
+	if positional.size() >= 1 and server_ip == "":
 		server_ip = positional[0]
 	if positional.size() >= 2:
 		server_port = int(positional[1])
+	if server_ip == "":
+		server_ip = DEFAULT_SERVER_IP
+	server_port = max(1, min(65535, server_port))
 	target_server_ip = server_ip
 	target_server_port = server_port
 	print("[CLIENT] parsed server ", target_server_ip, ":", target_server_port)
-	multiplayer.connected_to_server.connect(_on_client_connected)
-	multiplayer.connection_failed.connect(_on_client_connection_failed)
-	multiplayer.server_disconnected.connect(_on_client_disconnected)
+	if not multiplayer.connected_to_server.is_connected(_on_client_connected):
+		multiplayer.connected_to_server.connect(_on_client_connected)
+	if not multiplayer.connection_failed.is_connected(_on_client_connection_failed):
+		multiplayer.connection_failed.connect(_on_client_connection_failed)
+	if not multiplayer.server_disconnected.is_connected(_on_client_disconnected):
+		multiplayer.server_disconnected.connect(_on_client_disconnected)
 	_start_client_connection()
 
 func _start_client_connection():
@@ -191,7 +346,27 @@ func _on_client_connected():
 
 func _on_client_connection_failed():
 	print("[CLIENT] connection failed to ", target_server_ip, ":", target_server_port, " attempt ", reconnect_attempts)
+	if reconnect_attempts >= MAX_RECONNECT_ATTEMPTS:
+		print("[CLIENT] giving up after ", reconnect_attempts, " attempts")
+		_show_connection_failed_and_return_to_menu()
+		return
 	_schedule_reconnect()
+
+func _show_connection_failed_and_return_to_menu():
+	# Show a popup with the failure reason, then return to main menu.
+	var dialog := AcceptDialog.new()
+	dialog.title = "Connection Failed"
+	dialog.dialog_text = "Could not connect to server at\n%s:%d\n\nCheck that the server is running and reachable." % [target_server_ip, target_server_port]
+	add_child(dialog)
+	dialog.confirmed.connect(_return_to_menu)
+	dialog.canceled.connect(_return_to_menu)
+	dialog.popup_centered()
+
+func _return_to_menu():
+	GameLaunch.mode = "client"
+	GameLaunch.server_ip = ""
+	GameLaunch.server_port = DEFAULT_SERVER_PORT
+	get_tree().change_scene_to_file("res://main_menu.tscn")
 
 func _on_client_disconnected():
 	print("[CLIENT] disconnected from server")
@@ -246,11 +421,21 @@ func _unhandled_input(event):
 			return
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
 			camera.zoom = camera.zoom * (1.0 + zoom_speed)
+			camera.zoom = camera.zoom.clamp(Vector2(0.1, 0.1), Vector2(4.0, 4.0))
 		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 			camera.zoom = camera.zoom / (1.0 + zoom_speed)
+			camera.zoom = camera.zoom.clamp(Vector2(0.1, 0.1), Vector2(4.0, 4.0))
 		elif event.button_index == MOUSE_BUTTON_LEFT:
 			var tile := tile_map.local_to_map(tile_map.get_local_mouse_position())
 			if tile.x < 0 or tile.x >= WORLD_SIZE or tile.y < 0 or tile.y >= WORLD_SIZE:
+				return
+			# Settlement choice: left click selects base tile before any building is chosen
+			if _settle_mode:
+				if _is_valid_settle_tile_client(tile):
+					print("Client requesting settle base at ", tile)
+					Network.ask_settle_base(tile)
+				else:
+					print("Client: invalid settle tile ", tile)
 				return
 			# Info click when no build type selected
 			if selected_build_type == -1:
@@ -320,23 +505,35 @@ func _unhandled_input(event):
 				if event.pressed:
 					print("Client clicked tile: ", tile, " type: ", selected_build_type)
 					Network.ask_build(tile, selected_build_type)
-	elif event is InputEventMouseMotion and is_dragging_stockpile:
+	elif event is InputEventMouseMotion:
 		var tile := tile_map.local_to_map(tile_map.get_local_mouse_position())
 		if tile.x >= 0 and tile.x < WORLD_SIZE and tile.y >= 0 and tile.y < WORLD_SIZE:
-			drag_current_tile = tile
-			queue_redraw()
-	elif event is InputEventMouseMotion and is_dragging_farm:
-		var tile := tile_map.local_to_map(tile_map.get_local_mouse_position())
-		if tile.x >= 0 and tile.x < WORLD_SIZE and tile.y >= 0 and tile.y < WORLD_SIZE:
-			farm_drag_current = tile
-			queue_redraw()
-	elif event is InputEventMouseMotion and is_dragging_room:
-		var tile := tile_map.local_to_map(tile_map.get_local_mouse_position())
-		if tile.x >= 0 and tile.x < WORLD_SIZE and tile.y >= 0 and tile.y < WORLD_SIZE:
-			room_drag_current = tile
-			queue_redraw()
+			if _settle_mode:
+				_update_settle_cursor(tile)
+			if is_dragging_stockpile:
+				drag_current_tile = tile
+				queue_redraw()
+			elif is_dragging_farm:
+				farm_drag_current = tile
+				queue_redraw()
+			elif is_dragging_room:
+				room_drag_current = tile
+				queue_redraw()
 	elif event is InputEventKey and event.pressed and event.keycode == KEY_SPACE:
 		camera.position = Vector2(WORLD_SIZE * TILE_SIZE / 2, WORLD_SIZE * TILE_SIZE / 2)
+
+func _update_settle_cursor(tile: Vector2i):
+	if _settle_cursor == null or not is_instance_valid(_settle_cursor):
+		_settle_cursor = ColorRect.new()
+		_settle_cursor.size = Vector2(TILE_SIZE - 2, TILE_SIZE - 2)
+		_settle_cursor.z_index = 10
+		add_child(_settle_cursor)
+	_settle_cursor.position = Vector2(tile.x * TILE_SIZE + 1, tile.y * TILE_SIZE + 1)
+	if _is_valid_settle_tile_client(tile):
+		_settle_cursor.color = Color(0.2, 1.0, 0.2, 0.6)
+	else:
+		_settle_cursor.color = Color(1.0, 0.2, 0.2, 0.6)
+	_settle_last_tile = tile
 
 func _input(event):
 	if is_server:
@@ -440,21 +637,57 @@ func _on_blueprint_placed(pos: Vector2i, type_id: int):
 var camera_initialized: bool = false
 var camera_target_position: Vector2 = Vector2.ZERO
 
+const FOG_RADIUS: int = 12
+
+func _reveal_fog_around(pos: Vector2i, radius: int = FOG_RADIUS):
+	if fog_of_war == null:
+		return
+	for dy in range(-radius, radius + 1):
+		for dx in range(-radius, radius + 1):
+			if dx * dx + dy * dy > radius * radius:
+				continue
+			var t := Vector2i(PlanetGenerator.wrap_x(pos.x + dx), pos.y + dy)
+			if t.y < 0 or t.y >= WORLD_SIZE:
+				continue
+			explored_tiles[_pos_key(t)] = true
+			fog_of_war.erase_cell(0, t)
+
+func _reset_fog_of_war():
+	if fog_of_war == null:
+		return
+	fog_of_war.clear()
+	for y in range(WORLD_SIZE):
+		for x in range(WORLD_SIZE):
+			fog_of_war.set_cells_terrain_connect(0, [Vector2i(x, y)], 0, 0)
+
+func _pos_key(pos: Vector2i) -> String:
+	return "%d,%d" % [pos.x, pos.y]
+
 func _on_full_sync(data: Dictionary):
 	var buildings: Dictionary = data.get("buildings", {})
 	var floors: Dictionary = data.get("floors", {})
 	var blueprints: Dictionary = data.get("blueprints", {})
 	var stockpiles: Dictionary = data.get("stockpiles", {})
-	print("Client received full sync with ", buildings.size(), " buildings, ", floors.size(), " floors, ", blueprints.size(), " blueprints, ", stockpiles.size(), " stockpiles")
+	var player_bases: Dictionary = data.get("player_bases", {})
+	print("Client received full sync with ", buildings.size(), " buildings, ", floors.size(), " floors, ", blueprints.size(), " blueprints, ", stockpiles.size(), " stockpiles, ", player_bases.size(), " player bases")
 	var seed_value := data.get("seed", 12345) as int
 	if world_data.is_empty() or _last_world_seed != seed_value:
 		world_data = PlanetGenerator.generate_world(seed_value)
 		chunk_manager = ChunkManager.new(tile_map, world_data)
 		_last_world_seed = seed_value
+		_reset_fog_of_war()
 	_current_time_of_day = data.get("time_of_day", 6.0)
 	_current_day_count = data.get("day_count", 1)
 	_update_time_label()
 	_update_night_overlay()
+	# Apply tilemap chunks now that world data exists.
+	if chunk_manager:
+		chunk_manager.update(camera.global_position if camera else Vector2(WORLD_SIZE * TILE_SIZE / 2, WORLD_SIZE * TILE_SIZE / 2))
+		# Reveal fog around camera center as the player explores
+		if fog_of_war != null and camera != null and camera.zoom.x > 0.0:
+			var cam_tile := Vector2i(int(camera.global_position.x / TILE_SIZE), int(camera.global_position.y / TILE_SIZE))
+			var reveal_radius := maxi(8, int(FOG_RADIUS / camera.zoom.x))
+			_reveal_fog_around(cam_tile, reveal_radius)
 	for pos_str in floors:
 		var parts: PackedStringArray = pos_str.split(",")
 		var pos = Vector2i(int(parts[0]), int(parts[1]))
@@ -470,30 +703,32 @@ func _on_full_sync(data: Dictionary):
 	for stock_id in stockpiles:
 		_on_stockpile_added(stock_id, stockpiles[stock_id])
 	
-	# Initialize camera once, focused on the first stockpile or world center
+	# Initialize camera once, focused on the player's own base if settled,
+	# otherwise enter RimWorld-style settlement choice mode.
 	if not camera_initialized and camera:
-		var first_stock_pos: Vector2i = Vector2i(-1, -1)
-		for stock_id in data.get("stockpiles", {}):
-			var sdata = data["stockpiles"][stock_id]
-			first_stock_pos = Vector2i(int(sdata["topleft"]["x"]), int(sdata["topleft"]["y"]))
-			break
-		var target: Vector2
-		if first_stock_pos.x >= 0:
-			target = Vector2(first_stock_pos.x * TILE_SIZE + TILE_SIZE / 2, first_stock_pos.y * TILE_SIZE + TILE_SIZE / 2)
+		var my_id := str(multiplayer.get_unique_id())
+		var my_base: Dictionary = player_bases.get(my_id, {})
+		if my_base.has("x") and my_base.has("y"):
+			var base_pos := Vector2i(int(my_base["x"]), int(my_base["y"]))
+			_reveal_fog_around(base_pos, FOG_RADIUS)
+			_focus_camera_on(Vector2(base_pos.x * TILE_SIZE + TILE_SIZE / 2, base_pos.y * TILE_SIZE + TILE_SIZE / 2))
+			camera_initialized = true
+		elif not Network.last_full_sync.get("stockpiles", {}).is_empty():
+			var stocks: Dictionary = Network.last_full_sync["stockpiles"]
+			var first_id: String = stocks.keys()[0]
+			var sdata: Dictionary = stocks[first_id]
+			var pos := Vector2i(int(sdata["topleft"]["x"]), int(sdata["topleft"]["y"]))
+			_reveal_fog_around(pos, FOG_RADIUS)
+			_focus_camera_on(Vector2(pos.x * TILE_SIZE + TILE_SIZE / 2, pos.y * TILE_SIZE + TILE_SIZE / 2))
+			camera_initialized = true
 		else:
-			target = Vector2(WORLD_SIZE * TILE_SIZE / 2, WORLD_SIZE * TILE_SIZE / 2)
-		camera.global_position = target
-		camera.position = target
-		camera.offset = Vector2.ZERO
-		camera.make_current()
-		camera.force_update_scroll()
-		camera.reset_smoothing()
-		camera_frames = 999
-		camera_target_position = target
-		chunk_manager.update(target)
-		camera_initialized = true
+			_focus_camera_on(Vector2(WORLD_SIZE * TILE_SIZE / 2, WORLD_SIZE * TILE_SIZE / 2))
+			camera_initialized = true
+			if GameLaunch.mode != "singleplayer":
+				_enter_settle_mode()
 	else:
-		chunk_manager.update(camera.global_position if camera else Vector2(WORLD_SIZE * TILE_SIZE / 2, WORLD_SIZE * TILE_SIZE / 2))
+		if chunk_manager:
+			chunk_manager.update(camera.global_position if camera else Vector2(WORLD_SIZE * TILE_SIZE / 2, WORLD_SIZE * TILE_SIZE / 2))
 	_on_villager_sync(data.get("villagers", {}))
 	_on_resource_sync(data.get("resources", {"wood": 0, "food": 0, "stone": 0}))
 
@@ -714,6 +949,28 @@ func _on_reset_requested():
 func _on_spawn_requested():
 	print("Client: requesting villager spawn")
 	Network.ask_spawn_villager()
+
+func _on_send_chat():
+	var text := chat_input.text.strip_edges()
+	if text != "":
+		PlayerManager.send_chat(text)
+		chat_input.text = ""
+
+func _on_chat_input_submitted(text: String):
+	_on_send_chat()
+
+func _on_chat_message(id: int, text: String):
+	var name := PlayerManager.get_player_name(id)
+	var color := Color.WHITE
+	if PlayerManager.players.has(id):
+		color = PlayerManager.players[id].get("color", Color.WHITE)
+	chat_log.append_text("[color=#%s]%s[/color]: %s\n" % [color.to_html(false), name, text])
+
+func _on_player_joined(id: int, data: Dictionary):
+	chat_log.append_text("[color=gray]%s joined[/color]\n" % data.get("name", "Player %d" % id))
+
+func _on_player_left(id: int):
+	chat_log.append_text("[color=gray]%s left[/color]\n" % PlayerManager.get_player_name(id))
 
 func _get_stockpile_at_tile(tile: Vector2i) -> String:
 	for stock_id in Network.last_full_sync.get("stockpiles", {}):

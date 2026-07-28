@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://bsmithytest01"]
+
+[ext_resource type="Script" path="res://test_smithy_offline.gd" id="1_smithy"]
+
+[node name="TestSmithyOffline" type="Node"]
+script = ExtResource("1_smithy")

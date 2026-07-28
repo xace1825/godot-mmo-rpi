@@ -17,13 +17,15 @@ var _sync_timer: float = 0.0
 const SYNC_INTERVAL: float = 0.5
 
 func _ready():
-	set_physics_process(false)
 	multiplayer.peer_connected.connect(_on_peer_connected)
 	get_tree().root.set_as_audio_listener_2d(true)
 	if multiplayer.is_server():
+		set_physics_process(true)
 		GameState.time_of_day = 6.0
 		GameState.day_count = 1
 		print("Server: day-night cycle initialized at hour ", GameState.time_of_day)
+	else:
+		set_physics_process(false)
 
 func _notification(what: int):
 	if what == NOTIFICATION_WM_CLOSE_REQUEST:
@@ -402,6 +404,13 @@ func _process_workers():
 					if not GameState.consume_from_nearest_stockpile(current_tile, consumes, 1):
 						v["state"] = "idle"
 						print("Server: worker ", id, " waiting for ", consumes)
+						continue
+				# Extra consumes for advanced production (e.g. toolsmith needs blocks too)
+				var extra: Dictionary = PlanetGenerator.get_extra_consumes_for_job(job)
+				for res_extra: String in extra:
+					if not GameState.consume_from_nearest_stockpile(current_tile, res_extra, extra[res_extra]):
+						v["state"] = "idle"
+						print("Server: worker ", id, " waiting for ", res_extra)
 						continue
 				v["progress"] += WORK_UNITS_PER_TICK * speed_mult
 				v["state"] = "working"

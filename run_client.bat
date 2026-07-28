@@ -81,7 +81,7 @@ if %errorlevel% neq 0 (
 
 rem === Launch ===
 echo [INFO] Launching game...
-"!GODOT_PATH!" --path "%PROJECT_DIR%" --server-ip %SERVER_IP% --server-port %SERVER_PORT%
+"!GODOT_PATH!" --path "%PROJECT_DIR%" --scene "%PROJECT_DIR%\main_menu.tscn" --server-ip %SERVER_IP% --server-port %SERVER_PORT%
 
 if %errorlevel% neq 0 (
     echo [ERROR] Godot exited with code %errorlevel%
